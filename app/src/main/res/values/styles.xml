@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Flox" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/canvas</item>
+        <item name="android:colorBackground">@color/canvas</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:fontFamily">@font/geist_regular</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowContentTransitions">false</item>
+        <item name="android:colorControlHighlight">@color/hairline_strong</item>
+        <item name="android:colorAccent">@color/text_primary</item>
+        <item name="android:textColorHighlight">@color/hairline_strong</item>
+    </style>
+
+    <style name="Theme.Flox.Player">
+        <item name="android:windowBackground">@color/pure_black</item>
+        <item name="android:colorBackground">@color/pure_black</item>
+    </style>
+
+    <!-- Type roles -->
+    <style name="Text" >
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+    <style name="Text.Eyebrow">
+        <item name="android:fontFamily">@font/geist_mono_regular</item>
+        <item name="android:textSize">@dimen/text_eyebrow</item>
+        <item name="android:letterSpacing">0.071</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+    <style name="Text.Caption">
+        <item name="android:fontFamily">@font/geist_regular</item>
+        <item name="android:textSize">@dimen/text_caption</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+    <style name="Text.Body">
+        <item name="android:fontFamily">@font/geist_regular</item>
+        <item name="android:textSize">@dimen/text_body</item>
+        <item name="android:lineSpacingMultiplier">1.4</item>
+    </style>
+    <style name="Text.Heading">
+        <item name="android:fontFamily">@font/geist_medium</item>
+        <item name="android:textSize">@dimen/text_heading</item>
+        <item name="android:letterSpacing">-0.03</item>
+        <item name="android:lineSpacingMultiplier">1.05</item>
+    </style>
+    <style name="Text.Display">
+        <item name="android:fontFamily">@font/geist_medium</item>
+        <item name="android:textSize">@dimen/text_display</item>
+        <item name="android:letterSpacing">-0.05</item>
+        <item name="android:lineSpacingMultiplier">1.0</item>
+    </style>
+
+    <!-- Square buttons. Filled = inverted surface, Ghost = hairline. -->
+    <style name="Button.Filled" parent="android:Widget.Material.Button">
+        <item name="android:background">@drawable/bg_button_filled</item>
+        <item name="android:textColor">@color/text_on_inverted</item>
+        <item name="android:fontFamily">@font/geist_medium</item>
+        <item name="android:textSize">@dimen/text_caption</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:paddingStart">@dimen/space_24</item>
+        <item name="android:paddingEnd">@dimen/space_24</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
+    </style>
+    <style name="Button.Ghost" parent="Button.Filled">
+        <item name="android:background">@drawable/bg_button_ghost</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+</resources>

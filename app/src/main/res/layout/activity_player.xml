@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/player_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/pure_black">
+
+    <WebView
+        android:id="@+id/web_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/pure_black"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
+
+    <TextView
+        android:id="@+id/player_failed"
+        style="@style/Text.Eyebrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:text="@string/state_playback_failed"
+        android:textColor="@color/text_muted"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/player_hint"
+        style="@style/Text.Eyebrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="@dimen/space_48"
+        android:text="@string/player_focus_hint"
+        android:textColor="@color/text_muted"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/webview_warning"
+        style="@style/Text.Eyebrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="@dimen/space_48"
+        android:text="@string/webview_old"
+        android:textColor="@color/text_muted"
+        android:visibility="gone" />
+</FrameLayout>

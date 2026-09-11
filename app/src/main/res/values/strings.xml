@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Flox</string>
+    <string name="row_continue">CONTINUE WATCHING</string>
+    <string name="row_trending_movies">TRENDING MOVIES</string>
+    <string name="row_trending_tv">TRENDING TV</string>
+    <string name="state_loading">LOADING</string>
+    <string name="state_empty">NO RESULTS</string>
+    <string name="state_error">REQUEST FAILED</string>
+    <string name="state_playback_failed">PLAYBACK FAILED</string>
+    <string name="search">SEARCH</string>
+    <string name="search_hint">Title</string>
+    <string name="play">PLAY</string>
+    <string name="resume">RESUME</string>
+    <string name="type_movie">MOVIE</string>
+    <string name="type_tv">TV</string>
+    <string name="season_fmt">S%1$d</string>
+    <string name="episode_fmt">E%1$d</string>
+    <string name="player_focus_hint">PLAYER CONTROLS · BACK TO EXIT</string>
+    <string name="webview_old">SYSTEM WEBVIEW IS OUTDATED · PLAYBACK MAY FAIL</string>
+</resources>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipChildren="false"
+    android:orientation="horizontal"
+    android:paddingBottom="@dimen/space_32">
+
+    <ImageView
+        android:id="@+id/poster"
+        android:layout_width="@dimen/detail_poster_width"
+        android:layout_height="@dimen/detail_poster_height"
+        android:background="@color/card"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_32"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/meta"
+            style="@style/Text.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/title"
+            style="@style/Text.Heading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_12"
+            android:ellipsize="end"
+            android:maxLines="2" />
+
+        <TextView
+            android:id="@+id/overview"
+            style="@style/Text.Body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_16"
+            android:ellipsize="end"
+            android:maxLines="5"
+            android:textColor="@color/text_secondary" />
+
+        <!-- icon: ic_play -->
+        <Button
+            android:id="@+id/play"
+            style="@style/Button.Filled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_24"
+            android:text="@string/play" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 4px grid, TV-scaled type -->
+    <dimen name="space_4">4dp</dimen>
+    <dimen name="space_8">8dp</dimen>
+    <dimen name="space_12">12dp</dimen>
+    <dimen name="space_16">16dp</dimen>
+    <dimen name="space_24">24dp</dimen>
+    <dimen name="space_32">32dp</dimen>
+    <dimen name="space_48">48dp</dimen>
+    <dimen name="screen_padding">48dp</dimen>
+
+    <dimen name="text_eyebrow">14sp</dimen>
+    <dimen name="text_caption">18sp</dimen>
+    <dimen name="text_body">22sp</dimen>
+    <dimen name="text_heading">36sp</dimen>
+    <dimen name="text_display">56sp</dimen>
+
+    <dimen name="focus_stroke">2dp</dimen>
+    <dimen name="hairline">1dp</dimen>
+
+    <dimen name="poster_width">160dp</dimen>
+    <dimen name="poster_height">240dp</dimen>
+    <dimen name="still_width">224dp</dimen>
+    <dimen name="still_height">126dp</dimen>
+    <dimen name="detail_poster_width">280dp</dimen>
+    <dimen name="detail_poster_height">420dp</dimen>
+</resources>

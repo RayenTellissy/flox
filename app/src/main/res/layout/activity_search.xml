@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/canvas"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:orientation="vertical"
+    android:padding="@dimen/screen_padding">
+
+    <!-- icon: ic_search -->
+    <EditText
+        android:id="@+id/input"
+        style="@style/Text.Body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_input"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:hint="@string/search_hint"
+        android:imeOptions="actionSearch"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:minHeight="56dp"
+        android:paddingStart="@dimen/space_16"
+        android:paddingEnd="@dimen/space_16"
+        android:singleLine="true"
+        android:textColorHint="@color/text_muted" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/space_24"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <com.flox.tv.ui.PlainRecyclerView
+            android:id="@+id/grid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:overScrollMode="never"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/state"
+            style="@style/Text.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textColor="@color/text_muted"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

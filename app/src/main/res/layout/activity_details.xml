@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.flox.tv.ui.PlainRecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/list"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/canvas"
+    android:clipChildren="false"
+    android:clipToPadding="false"
+    android:overScrollMode="never"
+    android:padding="@dimen/screen_padding"
+    android:scrollbars="none" />
