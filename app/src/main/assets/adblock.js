@@ -149,6 +149,78 @@
     }
   } catch (e) {}
 
+  // WebView loads a default poster through android-webview-video-poster:, which fails CORS on crossorigin videos and fires a spurious error event
+  try {
+    var POSTER = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    var fixPoster = function (el) { if (el && el.tagName === "VIDEO" && !el.hasAttribute("poster")) el.setAttribute("poster", POSTER) }
+    var createEl = document.createElement
+    document.createElement = native(function createElement(tag) {
+      var el = createEl.apply(document, arguments)
+      if (String(tag).toLowerCase() === "video") fixPoster(el)
+      return el
+    }, "createElement")
+    new MutationObserver(function (ms) {
+      ms.forEach(function (m) {
+        m.addedNodes.forEach(function (n) {
+          if (n.nodeType !== 1) return
+          fixPoster(n)
+          if (n.querySelectorAll) n.querySelectorAll("video").forEach(fixPoster)
+        })
+      })
+    }).observe(document.documentElement, { childList: true, subtree: true })
+    var addMediaListener = HTMLMediaElement.prototype.addEventListener
+    HTMLMediaElement.prototype.addEventListener = native(function addEventListener(type, fn, opts) {
+      if (type === "error" && typeof fn === "function") {
+        var orig = fn
+        fn = function (e) { if (this.error) return orig.call(this, e); log("ignored media error without MediaError") }
+      }
+      return addMediaListener.call(this, type, fn, opts)
+    }, "addEventListener")
+  } catch (e) {}
+
+  // Low-end boxes choke on 4K; drop variants above 1080p from provider source lists
+  try {
+    var MAX_HEIGHT = 1080
+    var qualityHeight = function (q) {
+      var m = /(\d{3,4})p/i.exec(String(q))
+      if (m) return +m[1]
+      return /4k|uhd/i.test(String(q)) ? 2160 : 0
+    }
+    var stripHigh = function (node) {
+      if (Array.isArray(node)) {
+        var kept = node.filter(function (it) { return !(it && typeof it === "object" && it.url && qualityHeight(it.quality || it.label) > MAX_HEIGHT) })
+        if (kept.length && kept.length < node.length) { node.length = 0; kept.forEach(function (k) { node.push(k) }) }
+        node.forEach(stripHigh)
+      } else if (node && typeof node === "object") {
+        Object.keys(node).forEach(function (k) { stripHigh(node[k]) })
+      }
+    }
+    var origParse = JSON.parse
+    JSON.parse = native(function parse(text, reviver) {
+      var data = origParse.call(JSON, text, reviver)
+      if (typeof text === "string" && /2160|4k|uhd/i.test(text)) { try { stripHigh(data) } catch (e) {} }
+      return data
+    }, "parse")
+    var origFetch = window.fetch
+    window.fetch = native(function fetch(input, init) {
+      return origFetch.call(window, input, init).then(function (res) {
+        var ct = res.headers.get("content-type") || ""
+        if (ct.indexOf("json") < 0) return res
+        return res.clone().text().then(function (txt) {
+          if (!/2160|4k|uhd/i.test(txt)) return res
+          try {
+            var data = JSON.parse(txt)
+            stripHigh(data)
+            var body = JSON.stringify(data)
+            if (body === txt) return res
+            log("capped quality list")
+            return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers })
+          } catch (e) { return res }
+        })
+      })
+    }, "fetch")
+  } catch (e) {}
+
   // beforeunload
   try {
     window.onbeforeunload = null

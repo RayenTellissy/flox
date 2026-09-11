@@ -8,7 +8,7 @@
 
   try {
     var style = document.createElement("style")
-    style.textContent = ".flox-focus{outline:2px solid #fafafa !important;outline-offset:-2px !important;border-radius:0 !important}"
+    style.textContent = ".flox-focus,.flox-focus:focus,.flox-focus:focus-visible{outline:2px solid #fafafa !important;outline-offset:-2px !important;border-radius:0 !important;box-shadow:none !important}"
     ;(document.head || document.documentElement).appendChild(style)
   } catch (e) {}
 
@@ -141,6 +141,7 @@
     key("Escape", "Escape")
     var closer = all("button").filter(visible).filter(function (b) { return /close/i.test(b.getAttribute("aria-label") || "") })[0]
     if (closer) closer.click()
+    if (current) current.classList.remove("flox-focus")
     current = null
     return was
   }
@@ -160,7 +161,10 @@
     active = true
     wake()
     if (!keepTimer) keepTimer = setInterval(wake, 1500)
-    setTimeout(function () { if (!current || !visible(current)) nav("down") }, 200)
+    // controls fade in after the wake event, so retry until something is focusable
+    ;[150, 400, 800, 1500].forEach(function (ms) {
+      setTimeout(function () { if (active && (!current || !visible(current))) nav("down") }, ms)
+    })
   }
   function exit() {
     active = false
