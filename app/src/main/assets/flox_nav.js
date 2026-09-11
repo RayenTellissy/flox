@@ -1,7 +1,7 @@
 // Remote navigation over the player's own buttons. Injected after every page load.
 (function () {
   if (window.__flox) return
-  var SEL = 'button,[role=button],[role=menuitem],[role=menuitemradio],[role=option],[role=tab],a[href],input[type=range],[tabindex]:not([tabindex="-1"])'
+  var SEL = 'button,[role=button],[role=menuitem],[role=menuitemradio],[role=option],[role=tab],a[href],input[type=range],[tabindex]:not([tabindex="-1"]),[onclick],.cursor-pointer'
   var current = null
   var active = false
   var keepTimer = null
@@ -25,9 +25,48 @@
     } catch (e) { return false }
   }
   function all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)) }
-  function panels() { return all('[data-panel-open="true"],[role=dialog],[role=menu],[role=listbox]').filter(visible) }
+  function onTop(el) {
+    try {
+      var r = rect(el)
+      var hit = document.elementFromPoint(Math.min(innerWidth - 1, Math.max(0, (r.left + r.right) / 2)), Math.min(innerHeight - 1, Math.max(0, (r.top + r.bottom) / 2)))
+      return !!hit && (hit === el || el.contains(hit))
+    } catch (e) { return true }
+  }
+  function panels() { return all('[data-panel-open="true"],[role=dialog],[role=menu],[role=listbox]').filter(visible).filter(onTop) }
+  var reactKey = null
+  function reactClickable(el) {
+    try {
+      if (!reactKey) {
+        var keys = Object.keys(el)
+        for (var i = 0; i < keys.length; i++) if (keys[i].indexOf("__reactProps") === 0) { reactKey = keys[i]; break }
+        if (!reactKey) return false
+      }
+      var p = el[reactKey]
+      return !!(p && (p.onClick || p.onPointerDown || p.onMouseDown))
+    } catch (e) { return false }
+  }
+  function collect() {
+    var list = all(SEL)
+    var seen = new Set(list)
+    var every = document.body ? document.body.getElementsByTagName("*") : []
+    for (var i = 0; i < every.length; i++) {
+      var e = every[i]
+      if (seen.has(e) || e.tagName === "VIDEO") continue
+      if (reactClickable(e) && getComputedStyle(e).cursor === "pointer") { list.push(e); seen.add(e) }
+    }
+    return list
+  }
   function candidates() {
-    var list = all(SEL).filter(visible)
+    var list = collect().filter(visible).filter(onTop)
+    list = list.filter(function (e) {
+      if (e.tagName === "BUTTON" || e.tagName === "A" || e.tagName === "INPUT") return true
+      var inner = e.querySelectorAll(SEL)
+      if (!inner.length) return true
+      var r = rect(e)
+      var covered = 0
+      for (var i = 0; i < inner.length; i++) covered += rect(inner[i]).width
+      return covered < r.width * 0.6
+    })
     var p = panels()
     if (p.length) {
       var top = p[p.length - 1]
