@@ -1,0 +1,6 @@
+sdk.dir=/path/to/Android/sdk
+TMDB_API_KEY=
+KEYSTORE_FILE=keystore/flox.jks
+KEYSTORE_PASSWORD=
+KEY_ALIAS=flox
+KEY_PASSWORD=

@@ -10,6 +10,7 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 val tmdbKey: String = localProps.getProperty("TMDB_API_KEY") ?: System.getenv("TMDB_API_KEY") ?: ""
+val keystoreFile: String? = localProps.getProperty("KEYSTORE_FILE")
 
 android {
     namespace = "com.flox.tv"
@@ -25,11 +26,23 @@ android {
         resourceConfigurations += listOf("en")
     }
 
+    signingConfigs {
+        if (keystoreFile != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreFile)
+                storePassword = localProps.getProperty("KEYSTORE_PASSWORD")
+                keyAlias = localProps.getProperty("KEY_ALIAS")
+                keyPassword = localProps.getProperty("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystoreFile != null) signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
