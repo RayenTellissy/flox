@@ -12,7 +12,10 @@
         style="@style/Text.Eyebrow"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="@dimen/space_12" />
+        android:layout_marginBottom="@dimen/space_12"
+        android:drawablePadding="@dimen/space_8"
+        android:drawableTint="@color/text_secondary"
+        android:gravity="center_vertical" />
 
     <FrameLayout
         android:layout_width="match_parent"

@@ -38,9 +38,9 @@ class HomeActivity : Activity() {
         val search = findViewById<Button>(R.id.search)
         search.setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
 
-        continueRow = Row(findViewById(R.id.row_continue), R.string.row_continue) { openContinue(it) }
-        moviesRow = Row(findViewById(R.id.row_movies), R.string.row_trending_movies) { openDetails(it) }
-        tvRow = Row(findViewById(R.id.row_tv), R.string.row_trending_tv) { openDetails(it) }
+        continueRow = Row(findViewById(R.id.row_continue), R.string.row_continue, R.drawable.ic_continue) { openContinue(it) }
+        moviesRow = Row(findViewById(R.id.row_movies), R.string.row_trending_movies, R.drawable.ic_movie) { openDetails(it) }
+        tvRow = Row(findViewById(R.id.row_tv), R.string.row_trending_tv, R.drawable.ic_tv) { openDetails(it) }
 
         loadTrending(moviesRow, MediaType.MOVIE)
         loadTrending(tvRow, MediaType.TV)
@@ -88,13 +88,17 @@ class HomeActivity : Activity() {
         )
     }
 
-    private class Row(val root: View, labelRes: Int, onClick: (CardItem) -> Unit) {
+    private class Row(val root: View, labelRes: Int, iconRes: Int, onClick: (CardItem) -> Unit) {
         private val state: TextView = root.findViewById(R.id.row_state)
         private val list: FocusRow = root.findViewById(R.id.row_list)
         private val adapter = PosterAdapter(onClick)
 
         init {
-            root.findViewById<TextView>(R.id.row_label).setText(labelRes)
+            val label = root.findViewById<TextView>(R.id.row_label)
+            label.setText(labelRes)
+            val size = (label.textSize * 1.3f).toInt()
+            val icon = root.context.getDrawable(iconRes)?.mutate()?.apply { setBounds(0, 0, size, size) }
+            label.setCompoundDrawablesRelative(icon, null, null, null)
             list.adapter = adapter
         }
 

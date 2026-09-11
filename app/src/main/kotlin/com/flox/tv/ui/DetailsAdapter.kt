@@ -15,7 +15,7 @@ import com.flox.tv.data.MediaType
 import com.flox.tv.data.Tmdb
 
 sealed class DetailsRow {
-    data class Header(val details: MediaDetails, val buttonText: String) : DetailsRow()
+    data class Header(val details: MediaDetails, val buttonText: String, val resume: Boolean) : DetailsRow()
     data class Seasons(val selectedIndex: Int) : DetailsRow()
     data class EpisodeRow(val episode: Episode) : DetailsRow()
     data class State(val textRes: Int) : DetailsRow()
@@ -81,6 +81,7 @@ class DetailsAdapter(
             title.text = d.title
             overview.text = d.overview
             play.text = row.buttonText
+            play.setCompoundDrawablesRelativeWithIntrinsicBounds(if (row.resume) R.drawable.ic_continue else R.drawable.ic_play, 0, 0, 0)
             ImageLoader.load(poster, Tmdb.detailPoster(d.posterPath))
         }
     }

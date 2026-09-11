@@ -52,7 +52,7 @@ class DetailsActivity : Activity() {
         progress = ProgressStore.get(this, type, mediaId)
         val d = details ?: return
         if (adapter.rows.isNotEmpty() && adapter.rows[0] is DetailsRow.Header) {
-            adapter.rows[0] = DetailsRow.Header(d, buttonText())
+            adapter.rows[0] = DetailsRow.Header(d, buttonText(), hasProgress())
             adapter.notifyItemChanged(0)
         }
     }
@@ -68,7 +68,7 @@ class DetailsActivity : Activity() {
                 .onSuccess { d ->
                     details = d
                     adapter.rows.clear()
-                    adapter.rows.add(DetailsRow.Header(d, buttonText()))
+                    adapter.rows.add(DetailsRow.Header(d, buttonText(), hasProgress()))
                     if (type == MediaType.TV && d.seasons.isNotEmpty()) {
                         val fromProgress = progress?.lastSeason ?: -1
                         selectedSeason = if (d.seasons.any { it.number == fromProgress }) fromProgress else d.seasons[0].number
@@ -119,6 +119,8 @@ class DetailsActivity : Activity() {
         adapter.seasonAdapter.select(season)
         loadEpisodes(season)
     }
+
+    private fun hasProgress(): Boolean = (progress?.watchedSeconds ?: 0) > 0
 
     private fun buttonText(): String {
         val p = progress

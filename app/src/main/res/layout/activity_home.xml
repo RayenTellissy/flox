@@ -18,12 +18,14 @@
         android:orientation="vertical"
         android:padding="@dimen/screen_padding">
 
-        <!-- icon: ic_search -->
         <Button
             android:id="@+id/search"
             style="@style/Button.Ghost"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_search"
+            android:drawablePadding="@dimen/space_12"
+            android:drawableTint="@color/text_secondary"
             android:text="@string/search" />
 
         <include
