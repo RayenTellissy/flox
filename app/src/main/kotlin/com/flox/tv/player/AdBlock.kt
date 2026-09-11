@@ -89,21 +89,14 @@ object AdBlock {
         val host = uri.host?.lowercase() ?: return true
         if (!isHttp(uri)) return true
         if (uri.path.orEmpty().startsWith("/cdn-cgi/")) return false
+        val headers = request.requestHeaders
+        val dest = header(headers, "Sec-Fetch-Dest")?.lowercase()
+        val isCode = if (dest != null) dest in CODE_DEST else looksLikeCode(uri, headers)
+        // Video sources live on arbitrary hosts, so media wins over every host rule except main-frame
         val verdict = when (classify(host)) {
             HostClass.PLAYER, HostClass.CDN -> false
-            HostClass.BLOCKED_TLD -> true
-            HostClass.OTHER -> {
-                if (request.isForMainFrame) true
-                else {
-                    val headers = request.requestHeaders
-                    val dest = header(headers, "Sec-Fetch-Dest")?.lowercase()
-                    when {
-                        looksLikeMedia(uri, headers) -> false
-                        dest != null -> dest in CODE_DEST
-                        else -> looksLikeCode(uri, headers)
-                    }
-                }
-            }
+            HostClass.BLOCKED_TLD -> request.isForMainFrame || isCode || !looksLikeMedia(uri, headers)
+            HostClass.OTHER -> request.isForMainFrame || isCode
         }
         if (verdict) onBlocked(uri)
         return verdict

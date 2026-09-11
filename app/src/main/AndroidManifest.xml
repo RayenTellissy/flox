@@ -30,11 +30,12 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".ui.SearchActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ui.DetailsActivity" android:exported="false" />
+        <activity android:name=".ui.SearchActivity" android:exported="false" android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.DetailsActivity" android:exported="false" android:screenOrientation="landscape" />
 
         <activity
             android:name=".player.PlayerActivity"
+            android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
             android:exported="false"
             android:launchMode="singleTop"

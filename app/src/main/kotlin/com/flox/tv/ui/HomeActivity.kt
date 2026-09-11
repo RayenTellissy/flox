@@ -3,7 +3,10 @@ package com.flox.tv.ui
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
+import android.webkit.WebSettings
 import android.widget.Button
 import android.widget.ScrollView
 import android.widget.TextView
@@ -17,6 +20,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class HomeActivity : Activity() {
+
+    private companion object {
+        const val WARMUP_DELAY_MS = 3000L
+    }
 
     private val scope = MainScope()
     private lateinit var continueRow: Row
@@ -38,6 +45,8 @@ class HomeActivity : Activity() {
         loadTrending(moviesRow, MediaType.MOVIE)
         loadTrending(tvRow, MediaType.TV)
         search.requestFocus()
+        // Load the WebView provider early so the player opens without a main-thread stall
+        Handler(Looper.getMainLooper()).postDelayed({ runCatching { WebSettings.getDefaultUserAgent(applicationContext) } }, WARMUP_DELAY_MS)
     }
 
     override fun onResume() {
