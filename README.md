@@ -1,6 +1,8 @@
 # Flox
 
-Minimal Android TV client for VidFast. Kotlin, plain Views, one WebView.
+Minimal Android TV client for embedded movie players. Kotlin, plain Views, one WebView.
+
+Primary provider is 111movies (TMDB ids, keyboard-native player). VidFast is the automatic fallback when the primary produces no playback within 45 s or fails to load. Long-press MENU switches provider by hand.
 
 ## Build
 
@@ -26,8 +28,17 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | CENTER / PLAY-PAUSE | Play or pause |
 | LEFT / RIGHT | Seek 10 s |
 | REWIND / FAST-FORWARD | Seek 30 s |
-| MENU or long CENTER | Hand focus to the player's own controls (server, subtitles, quality) |
-| BACK | Leave player focus, then leave player |
+| UP / DOWN or long CENTER | Enter navigation mode over the player's own buttons |
+| MENU | Open the player's settings panel in navigation mode |
+| long MENU | Switch provider |
+| In navigation mode: D-pad moves, CENTER selects, BACK closes the panel then exits | |
+| BACK | Leave player |
+
+Navigation mode uses the app's own focus logic (nearest button in the pressed direction, 2 px square ring), so it does not depend on the WebView's built-in spatial navigation.
+
+Progress is read straight from the page's `<video>` element every 2 s, so continue-watching works the same on every provider. When an episode ends the app loads the next one from TMDB's episode list.
+
+Boxes without a hardware HEVC decoder are reported to the page as HEVC-incapable so providers serve H.264.
 
 ## Ad blocking
 

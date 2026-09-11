@@ -17,5 +17,8 @@
     <string name="season_fmt">S%1$d</string>
     <string name="episode_fmt">E%1$d</string>
     <string name="player_focus_hint">PLAYER CONTROLS · BACK TO EXIT</string>
+    <string name="player_nav_hint">NAVIGATE · CENTER SELECT · BACK EXIT</string>
+    <string name="player_switching">SWITCHING TO %1$s</string>
+    <string name="player_next_episode">NEXT · S%1$d E%2$d</string>
     <string name="webview_old">SYSTEM WEBVIEW IS OUTDATED · PLAYBACK MAY FAIL</string>
 </resources>

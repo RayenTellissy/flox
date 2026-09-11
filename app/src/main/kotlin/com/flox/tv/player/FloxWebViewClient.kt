@@ -14,10 +14,11 @@ import com.flox.tv.BuildConfig
 
 /**
  * Filters requests through AdBlock and reports main-frame failures.
- * [fallbackScript] is injected on page start/finish when document-start scripts are unsupported.
+ * [fallbackScript] is injected on page start when document-start scripts are unsupported.
  */
 class FloxWebViewClient(
     private val fallbackScript: String?,
+    private val onPageReady: (WebView) -> Unit,
     private val onPlaybackFailed: () -> Unit
 ) : WebViewClient() {
     private val main = Handler(Looper.getMainLooper())
@@ -46,6 +47,7 @@ class FloxWebViewClient(
 
     override fun onPageFinished(view: WebView, url: String?) {
         fallbackScript?.let { view.evaluateJavascript(it, null) }
+        onPageReady(view)
     }
 
     private fun fail(reason: String) {

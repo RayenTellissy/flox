@@ -15,10 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger
 object AdBlock {
     private const val TAG = "FloxAdBlock"
 
-    val PLAYER_HOSTS = setOf(
-        "vidfast.vc", "vidfast.pro", "vidfast.in", "vidfast.io", "vidfast.me",
-        "vidfast.net", "vidfast.pm", "vidfast.xyz", "vidfast.bz"
-    )
+    val PLAYER_HOSTS: Set<String> get() = Provider.ALL_HOSTS
 
     val CDN_ALLOW = setOf(
         "image.tmdb.org", "tmdb.org", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com",
@@ -43,6 +40,9 @@ object AdBlock {
 
     private val hostCache = ConcurrentHashMap<String, HostClass>()
     val blockedCount = AtomicInteger(0)
+
+    /** Debug switch: when false every request and navigation passes. */
+    @Volatile var enabled = true
 
     @Volatile private var scriptCache: String? = null
 
@@ -85,6 +85,7 @@ object AdBlock {
 
     /** Verdict for shouldInterceptRequest. */
     fun shouldBlock(request: WebResourceRequest): Boolean {
+        if (!enabled) return false
         val uri = request.url
         val host = uri.host?.lowercase() ?: return true
         if (!isHttp(uri)) return true
@@ -95,8 +96,7 @@ object AdBlock {
         // Video sources live on arbitrary hosts, so media wins over every host rule except main-frame
         val verdict = when (classify(host)) {
             HostClass.PLAYER, HostClass.CDN -> false
-            HostClass.BLOCKED_TLD -> request.isForMainFrame || isCode || !looksLikeMedia(uri, headers)
-            HostClass.OTHER -> request.isForMainFrame || isCode
+            HostClass.BLOCKED_TLD, HostClass.OTHER -> request.isForMainFrame || isCode
         }
         if (verdict) onBlocked(uri)
         return verdict
@@ -104,6 +104,7 @@ object AdBlock {
 
     /** Verdict for shouldOverrideUrlLoading; true = navigation allowed. */
     fun allowNavigation(request: WebResourceRequest): Boolean {
+        if (!enabled) return true
         val uri = request.url
         if (!isHttp(uri)) return false
         val host = uri.host?.lowercase() ?: return false
@@ -119,11 +120,20 @@ object AdBlock {
     /** Document-start script with host lists substituted in. */
     fun script(ctx: Context): String = scriptCache ?: synchronized(this) {
         scriptCache ?: run {
-            val raw = ctx.assets.open("adblock.js").bufferedReader().use { it.readText() }
+            val raw = asset(ctx, "adblock.js")
             val allow = JSONArray().apply { (PLAYER_HOSTS + CDN_ALLOW).forEach { put(it) } }
-            raw.replace("__ALLOW__", allow.toString()).also { scriptCache = it }
+            raw.replace("__ALLOW__", allow.toString())
+                .replace("__NOHEVC__", (!Codecs.hasHevcDecoder()).toString())
+                .also { scriptCache = it }
         }
     }
+
+    @Volatile private var navCache: String? = null
+
+    /** Remote navigation helper, injected after each page load. */
+    fun navScript(ctx: Context): String = navCache ?: asset(ctx, "flox_nav.js").also { navCache = it }
+
+    private fun asset(ctx: Context, name: String) = ctx.assets.open(name).bufferedReader().use { it.readText() }
 
     private fun onBlocked(uri: Uri) {
         blockedCount.incrementAndGet()

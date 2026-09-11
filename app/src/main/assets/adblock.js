@@ -120,6 +120,35 @@
     guardHandler(document, n)
   })
 
+  // Boxes without an HEVC decoder must not advertise it, or players serve streams they cannot decode
+  if (__NOHEVC__) {
+    try {
+      var isHevc = /hev1|hvc1|hevc|h265/i
+      var mseSupported = MediaSource.isTypeSupported
+      MediaSource.isTypeSupported = native(function isTypeSupported(t) { return isHevc.test(t) ? false : mseSupported.call(MediaSource, t) }, "isTypeSupported")
+      var canPlay = HTMLMediaElement.prototype.canPlayType
+      HTMLMediaElement.prototype.canPlayType = native(function canPlayType(t) { return isHevc.test(t) ? "" : canPlay.call(this, t) }, "canPlayType")
+      if (navigator.mediaCapabilities && navigator.mediaCapabilities.decodingInfo) {
+        var decInfo = navigator.mediaCapabilities.decodingInfo
+        navigator.mediaCapabilities.decodingInfo = function (cfg) {
+          var ct = cfg && cfg.video && cfg.video.contentType || ""
+          if (isHevc.test(ct)) return Promise.resolve({ supported: false, smooth: false, powerEfficient: false })
+          return decInfo.call(navigator.mediaCapabilities, cfg)
+        }
+      }
+    } catch (e) {}
+  }
+
+  // service workers bypass the app's request filter; keep everything on the main network path
+  try {
+    if (navigator.serviceWorker) {
+      var swProto = Object.getPrototypeOf(navigator.serviceWorker)
+      var rejectSw = native(function register() { log("blocked service worker"); return Promise.reject(new Error("blocked")) }, "register")
+      try { Object.defineProperty(swProto, "register", { value: rejectSw, configurable: true }) } catch (e) { navigator.serviceWorker.register = rejectSw }
+      navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister() }) }).catch(function () {})
+    }
+  } catch (e) {}
+
   // beforeunload
   try {
     window.onbeforeunload = null

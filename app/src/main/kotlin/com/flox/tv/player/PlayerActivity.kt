@@ -21,6 +21,10 @@ import androidx.webkit.WebViewFeature
 import com.flox.tv.BuildConfig
 import com.flox.tv.R
 import com.flox.tv.data.MediaType
+import com.flox.tv.data.Tmdb
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class PlayerActivity : Activity() {
     private lateinit var webView: WebView
@@ -30,9 +34,15 @@ class PlayerActivity : Activity() {
     private lateinit var bridge: PlayerBridge
 
     private val main = Handler(Looper.getMainLooper())
+    private val scope = MainScope()
     private val hideHint = Runnable { hint.visibility = View.GONE }
-    private var focusMode = false
+    private val watchdog = Runnable { if (!bridge.hasPlayback) fallback("no playback") }
+
+    private var provider = Provider.VIDLOVE
+    private var navMode = false
     private var centerLongPressed = false
+    private var menuLongPressed = false
+    private var startAt = 0
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,9 +58,7 @@ class PlayerActivity : Activity() {
 
         val id = intent.getIntExtra(PlayerIntent.EXTRA_ID, 0)
         val type = MediaType.from(intent.getStringExtra(PlayerIntent.EXTRA_TYPE))
-        val season = intent.getIntExtra(PlayerIntent.EXTRA_SEASON, 1)
-        val episode = intent.getIntExtra(PlayerIntent.EXTRA_EPISODE, 1)
-        val startAt = intent.getIntExtra(PlayerIntent.EXTRA_START_AT, 0)
+        startAt = intent.getIntExtra(PlayerIntent.EXTRA_START_AT, 0)
         bridge = PlayerBridge(
             this,
             PlayerBridge.Meta(
@@ -58,13 +66,16 @@ class PlayerActivity : Activity() {
                 type = type,
                 title = intent.getStringExtra(PlayerIntent.EXTRA_TITLE).orEmpty(),
                 posterPath = intent.getStringExtra(PlayerIntent.EXTRA_POSTER),
-                season = season,
-                episode = episode
-            )
+                season = intent.getIntExtra(PlayerIntent.EXTRA_SEASON, 1),
+                episode = intent.getIntExtra(PlayerIntent.EXTRA_EPISODE, 1)
+            ),
+            onEnded = { main.post { onEnded() } }
         )
 
+        val noShield = BuildConfig.DEBUG && getSharedPreferences("flox_debug", MODE_PRIVATE).getBoolean("noShield", false)
+        AdBlock.enabled = !noShield
         val script = AdBlock.script(this)
-        val docStart = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
+        val docStart = !noShield && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
         val major = WebViewCompat.getCurrentWebViewPackage(this)?.versionName
             ?.substringBefore('.')?.toIntOrNull()
         if (!docStart || (major != null && major < MIN_WEBVIEW_MAJOR)) warning.visibility = View.VISIBLE
@@ -87,22 +98,74 @@ class PlayerActivity : Activity() {
         webView.setBackgroundColor(0xFF000000.toInt())
         chrome = FloxChromeClient(this)
         webView.webChromeClient = chrome
-        webView.webViewClient = FloxWebViewClient(if (docStart) null else script, ::showFailed)
+        webView.webViewClient = FloxWebViewClient(
+            fallbackScript = if (docStart || noShield) null else script,
+            onPageReady = ::onPageReady,
+            onPlaybackFailed = { fallback("load error") }
+        )
         webView.addJavascriptInterface(bridge, "FloxBridge")
         if (docStart) WebViewCompat.addDocumentStartJavaScript(webView, script, setOf("*"))
 
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
         webView.requestFocus()
-        webView.loadUrl(buildUrl(id, type, season, episode, startAt))
+        load()
     }
 
-    private fun buildUrl(id: Int, type: MediaType, season: Int, episode: Int, startAt: Int): String {
-        val base = if (type == MediaType.TV)
-            "https://vidfast.vc/tv/$id/$season/$episode?autoPlay=true&theme=fafafa&nextButton=true&autoNext=true"
-        else
-            "https://vidfast.vc/movie/$id?autoPlay=true&theme=fafafa"
-        return if (startAt > 0) "$base&startAt=$startAt" else base
+    private fun load() {
+        bridge.reset()
+        exitNav()
+        failed.visibility = View.GONE
+        webView.visibility = View.VISIBLE
+        main.removeCallbacks(watchdog)
+        main.postDelayed(watchdog, WATCHDOG_MS)
+        val m = bridge.meta
+        webView.loadUrl(provider.url(m.id, m.type, m.season, m.episode, startAt))
+    }
+
+    private fun onPageReady(view: WebView) {
+        view.evaluateJavascript(AdBlock.navScript(this), null)
+        if (startAt > 0) view.evaluateJavascript("window.__floxApplyStart && window.__floxApplyStart($startAt)", null)
+    }
+
+    private fun fallback(reason: String) {
+        if (isFinishing || isDestroyed) return
+        if (BuildConfig.DEBUG) Log.d("FloxPlayer", "fallback from ${provider.name}: $reason")
+        val next = provider.next()
+        if (next == null) {
+            showFailed()
+            return
+        }
+        provider = next
+        startAt = maxOf(startAt, bridge.currentTime.toInt())
+        showHint(getString(R.string.player_switching, next.label))
+        load()
+    }
+
+    private fun switchProvider() {
+        provider = provider.next() ?: Provider.entries.first()
+        startAt = bridge.currentTime.toInt()
+        showHint(getString(R.string.player_switching, provider.label))
+        load()
+    }
+
+    private fun onEnded() {
+        val m = bridge.meta
+        if (m.type != MediaType.TV) {
+            finish()
+            return
+        }
+        scope.launch {
+            val count = Tmdb.episodes(m.id, m.season).getOrNull()?.size ?: 0
+            if (m.episode < count) {
+                m.episode += 1
+                startAt = 0
+                showHint(getString(R.string.player_next_episode, m.season, m.episode))
+                load()
+            } else {
+                finish()
+            }
+        }
     }
 
     private fun goImmersive() {
@@ -124,73 +187,104 @@ class PlayerActivity : Activity() {
             if (event.action == KeyEvent.ACTION_DOWN) onBack()
             return true
         }
-        if (focusMode) return super.dispatchKeyEvent(event)
-
         val isCenter = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
         if (isCenter) {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> {
                     if (event.repeatCount == 0) {
-                        event.startTracking()
                         centerLongPressed = false
-                    } else if (!centerLongPressed) {
+                    } else if (!centerLongPressed && !navMode) {
                         centerLongPressed = true
-                        enterFocusMode()
+                        enterNav()
                     }
                 }
-                KeyEvent.ACTION_UP -> if (!centerLongPressed) togglePlay()
+                KeyEvent.ACTION_UP -> if (!centerLongPressed) {
+                    if (navMode) js("__flox.activate()") else js("__flox.key(' ','Space')")
+                }
+            }
+            return true
+        }
+        if (code == KeyEvent.KEYCODE_MENU) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> {
+                    if (event.repeatCount == 0) {
+                        menuLongPressed = false
+                    } else if (!menuLongPressed) {
+                        menuLongPressed = true
+                        switchProvider()
+                    }
+                }
+                KeyEvent.ACTION_UP -> if (!menuLongPressed) openSettings()
             }
             return true
         }
         if (event.action != KeyEvent.ACTION_DOWN) return true
+        if (navMode) {
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> js("__flox.nav('left')")
+                KeyEvent.KEYCODE_DPAD_RIGHT -> js("__flox.nav('right')")
+                KeyEvent.KEYCODE_DPAD_UP -> js("__flox.nav('up')")
+                KeyEvent.KEYCODE_DPAD_DOWN -> js("__flox.nav('down')")
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> js("__flox.key(' ','Space')")
+            }
+            return true
+        }
         when (code) {
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> togglePlay()
-            KeyEvent.KEYCODE_MEDIA_PLAY -> command("play")
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> command("pause")
-            KeyEvent.KEYCODE_DPAD_LEFT -> seekBy(-10)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> seekBy(10)
-            KeyEvent.KEYCODE_MEDIA_REWIND -> seekBy(-30)
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seekBy(30)
-            KeyEvent.KEYCODE_MENU -> enterFocusMode()
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> Unit
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> js("__flox.key(' ','Space')")
+            KeyEvent.KEYCODE_MEDIA_PLAY -> js("__flox.state()&&__flox.state().paused&&__flox.key(' ','Space')")
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> js("__flox.state()&&!__flox.state().paused&&__flox.key(' ','Space')")
+            KeyEvent.KEYCODE_DPAD_LEFT -> js("__flox.key('ArrowLeft','ArrowLeft')")
+            KeyEvent.KEYCODE_DPAD_RIGHT -> js("__flox.key('ArrowRight','ArrowRight')")
+            KeyEvent.KEYCODE_MEDIA_REWIND -> js("__flox.seek(-30)")
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> js("__flox.seek(30)")
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> enterNav()
             else -> return super.dispatchKeyEvent(event)
         }
         return true
     }
 
-    private fun onBack() = when {
-        chrome.hasCustomView -> chrome.hideCustomView()
-        focusMode -> exitFocusMode()
-        else -> finish()
+    private fun onBack() {
+        when {
+            chrome.hasCustomView -> chrome.hideCustomView()
+            navMode -> webView.evaluateJavascript("window.__flox?__flox.closePanel():false") { result ->
+                if (result != "true") exitNav()
+            }
+            else -> finish()
+        }
     }
 
-    private fun togglePlay() = command(if (bridge.playing) "pause" else "play")
-
-    private fun command(name: String) =
-        webView.evaluateJavascript("window.postMessage({command:'$name'},'*')", null)
-
-    private fun seekBy(delta: Int) {
-        val target = (bridge.currentTime + delta).coerceAtLeast(0.0).toInt()
-        webView.evaluateJavascript("window.postMessage({command:'seek',time:$target},'*')", null)
+    private fun enterNav() {
+        if (navMode) return
+        navMode = true
+        js("__flox.enter()")
+        showHint(getString(R.string.player_nav_hint))
     }
 
-    private fun enterFocusMode() {
-        focusMode = true
-        webView.requestFocus()
-        webView.evaluateJavascript("document.body&&document.body.focus()", null)
+    private fun exitNav() {
+        if (!navMode) return
+        navMode = false
+        js("__flox.exit()")
+        main.removeCallbacks(hideHint)
+        hint.visibility = View.GONE
+    }
+
+    private fun openSettings() {
+        if (!navMode) enterNav()
+        js("__flox.clickLabel('settings|lucide-settings') || __flox.nav('down')")
+    }
+
+    private fun js(expr: String) = webView.evaluateJavascript("window.__flox&&($expr)", null)
+
+    private fun showHint(text: String) {
+        hint.text = text
         hint.visibility = View.VISIBLE
         main.removeCallbacks(hideHint)
         main.postDelayed(hideHint, HINT_MS)
     }
 
-    private fun exitFocusMode() {
-        focusMode = false
-        main.removeCallbacks(hideHint)
-        hint.visibility = View.GONE
-    }
-
     private fun showFailed() {
         if (isFinishing || isDestroyed) return
+        main.removeCallbacks(watchdog)
         failed.visibility = View.VISIBLE
         webView.visibility = View.INVISIBLE
         if (BuildConfig.DEBUG) Log.d("FloxPlayer", "blocked=${AdBlock.blockedCount.get()}")
@@ -209,6 +303,7 @@ class PlayerActivity : Activity() {
     }
 
     override fun onDestroy() {
+        scope.cancel()
         main.removeCallbacksAndMessages(null)
         chrome.hideCustomView()
         (webView.parent as? ViewGroup)?.removeView(webView)
@@ -219,7 +314,8 @@ class PlayerActivity : Activity() {
     }
 
     private companion object {
-        const val HINT_MS = 2000L
+        const val HINT_MS = 2500L
+        const val WATCHDOG_MS = 45_000L
         const val MIN_WEBVIEW_MAJOR = 89
     }
 }
