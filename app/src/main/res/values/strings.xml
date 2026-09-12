@@ -19,6 +19,8 @@
     <string name="player_focus_hint">PLAYER CONTROLS · BACK TO EXIT</string>
     <string name="player_nav_hint">NAVIGATE · CENTER SELECT · BACK EXIT</string>
     <string name="player_reloading">RELOADING PLAYER</string>
+    <string name="player_subtitles_on">SUBTITLES · %1$s</string>
+    <string name="player_subtitles_off">SUBTITLES OFF</string>
     <string name="player_next_episode">NEXT · S%1$d E%2$d</string>
     <string name="webview_old">SYSTEM WEBVIEW IS OUTDATED · PLAYBACK MAY FAIL</string>
 </resources>

@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/player_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/pure_black">
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/native_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/pure_black"
+        app:resize_mode="fit"
+        app:show_buffering="when_playing"
+        app:show_subtitle_button="false"
+        app:show_next_button="false"
+        app:show_previous_button="false"
+        app:show_shuffle_button="false"
+        app:surface_type="surface_view"
+        app:use_controller="true" />
 
     <WebView
         android:id="@+id/web_view"

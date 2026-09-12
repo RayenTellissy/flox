@@ -1,8 +1,8 @@
 # Flox
 
-Minimal Android TV client for embedded movie players. Kotlin, plain Views, one WebView.
+Minimal Android TV client. Kotlin, plain Views, one WebView that resolves the stream and an ExoPlayer that plays it.
 
-Player is VidLink (TMDB ids). Source lists are capped at 1080p so low-end boxes never get handed a 4K stream. A failed or stalled load (no playback within 45 s) is reloaded once automatically; after that the failed screen is shown and CENTER retries. Long-press MENU reloads the player by hand.
+Source is VidLink (TMDB ids). The page is loaded in a hidden WebView only to resolve the stream: a document-start hook reports the HLS or DASH manifest its player fetches, plus the caption list from the source response, and the app plays that manifest in ExoPlayer with the page's Referer and Origin. Captions load as side-loaded subtitle tracks, off by default. Once the first frame renders the page is unloaded. If the native player errors, playback falls back to the page player for the rest of the session. Video is capped at 1080p, and boxes without a hardware HEVC decoder hide HEVC so an HEVC-only source falls back instead of stuttering. A failed or stalled load (no playback within 45 s) is reloaded once automatically; after that the failed screen is shown and CENTER retries. Long-press MENU reloads by hand.
 
 ## Build
 
@@ -28,15 +28,17 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | CENTER / PLAY-PAUSE | Play or pause |
 | LEFT / RIGHT | Seek 10 s |
 | REWIND / FAST-FORWARD | Seek 30 s |
-| UP / DOWN or long CENTER | Enter navigation mode over the player's own buttons |
-| MENU | Open the player's settings panel in navigation mode |
+| UP / DOWN | Show the native controls (seek bar, play). D-pad moves between buttons, BACK hides them |
+| MENU | Cycle subtitles: off, then each track, device language first |
+| UP / DOWN or long CENTER | Page player only: enter navigation mode over its buttons |
+| MENU | Page player only: open its settings panel in navigation mode |
 | long MENU | Reload player |
 | In navigation mode: D-pad moves, CENTER selects, BACK closes the panel then exits | |
 | BACK | Leave player |
 
 Navigation mode uses the app's own focus logic (nearest button in the pressed direction, 2 px square ring), so it does not depend on the WebView's built-in spatial navigation.
 
-Progress is read straight from the page's `<video>` element every 2 s. The player autoplays muted without a user gesture, so the app unmutes it once playback is running. When an episode ends the app loads the next one from TMDB's episode list.
+Progress is written every 2 s from whichever player is active. In the page player, which autoplays muted without a user gesture, the app unmutes once playback is running. When an episode ends the app loads the next one from TMDB's episode list.
 
 Boxes without a hardware HEVC decoder are reported to the page as HEVC-incapable so the player serves H.264. Every `<video>` gets a data-URI poster because the WebView's default poster fails CORS on crossorigin players and fires a spurious error.
 

@@ -5,17 +5,23 @@ import android.webkit.JavascriptInterface
 import com.flox.tv.data.MediaType
 import com.flox.tv.data.Progress
 import com.flox.tv.data.ProgressStore
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Receives player state from the page (JS thread) and persists progress.
- * Works from the generic FLOX_TICK poll plus each provider's own postMessage events.
+ * Receives player state from the page (JS thread) or the native player and persists progress.
+ * Also relays the manifest and captions the page resolves so playback can move to the native player.
  */
 class PlayerBridge(
     ctx: Context,
     val meta: Meta,
-    private val onEnded: () -> Unit
+    private val onEnded: () -> Unit,
+    private val onManifest: (Manifest) -> Unit,
+    private val onCaptions: (List<Caption>) -> Unit
 ) {
+    data class Manifest(val url: String, val kind: String, val headers: Map<String, String>)
+    data class Caption(val url: String, val language: String, val type: String)
+
     data class Meta(
         val id: Int,
         val type: MediaType,
@@ -50,20 +56,46 @@ class PlayerBridge(
             val msg = JSONObject(json)
             when (msg.optString("type")) {
                 "FLOX_TICK" -> onTick(msg.optJSONObject("data") ?: return)
+                "FLOX_MANIFEST" -> onManifestMessage(msg.optJSONObject("data") ?: return)
+                "FLOX_STREAM" -> onStreamMessage(msg.optJSONObject("data") ?: return)
                 "PLAYER_EVENT" -> onPlayerEvent(msg.optJSONObject("data") ?: return)
                 "MEDIA_DATA" -> onMediaData(msg.opt("data") ?: return)
             }
         }
     }
 
-    private fun onTick(d: JSONObject) {
-        val duration = d.optDouble("duration", 0.0)
-        val time = d.optDouble("currentTime", 0.0)
+    private fun onManifestMessage(d: JSONObject) {
+        val url = d.optString("url")
+        if (!url.startsWith("http")) return
+        val headers = mutableMapOf<String, String>()
+        d.optJSONObject("headers")?.let { h -> h.keys().forEach { k -> headers[k] = h.optString(k) } }
+        onManifest(Manifest(url, d.optString("kind"), headers))
+    }
+
+    private fun onStreamMessage(d: JSONObject) {
+        val arr: JSONArray = d.optJSONArray("captions") ?: return
+        val list = (0 until arr.length()).mapNotNull { i ->
+            val c = arr.optJSONObject(i) ?: return@mapNotNull null
+            val url = c.optString("url")
+            if (!url.startsWith("http")) null else Caption(url, c.optString("language"), c.optString("type"))
+        }
+        onCaptions(list)
+    }
+
+    private fun onTick(d: JSONObject) = tick(
+        time = d.optDouble("currentTime", 0.0),
+        duration = d.optDouble("duration", 0.0),
+        paused = d.optBoolean("paused", true),
+        ended = d.optBoolean("ended")
+    )
+
+    /** Progress from either player. Safe to call from any thread. */
+    fun tick(time: Double, duration: Double, paused: Boolean, ended: Boolean) {
         currentTime = time
-        playing = !d.optBoolean("paused", true)
+        playing = !paused
         if (duration <= 0) return
         if (time > 0) hasPlayback = true
-        val ended = d.optBoolean("ended") || (time > 0 && time >= duration - 1.0)
+        val ended = ended || (time > 0 && time >= duration - 1.0)
         val now = System.currentTimeMillis()
         if (ended || now - lastWrite >= WRITE_INTERVAL_MS) {
             lastWrite = now

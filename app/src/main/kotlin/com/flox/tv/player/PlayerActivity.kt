@@ -16,6 +16,8 @@ import android.widget.TextView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.PlayerView
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.flox.tv.BuildConfig
@@ -26,8 +28,11 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
+@UnstableApi
 class PlayerActivity : Activity() {
     private lateinit var webView: WebView
+    private lateinit var nativeView: PlayerView
+    private lateinit var native: NativePlayer
     private lateinit var hint: TextView
     private lateinit var failed: TextView
     private lateinit var chrome: FloxChromeClient
@@ -39,6 +44,10 @@ class PlayerActivity : Activity() {
     private val watchdog = Runnable { if (!bridge.hasPlayback) onLoadFailed("no playback") }
 
     private var retried = false
+    // the page resolves the stream; playback moves to ExoPlayer unless that fails for this session
+    private var nativeAllowed = true
+    private var nativeShown = false
+    private var captions: List<PlayerBridge.Caption> = emptyList()
     private var navMode = false
     private var centerLongPressed = false
     private var menuLongPressed = false
@@ -52,6 +61,7 @@ class PlayerActivity : Activity() {
         goImmersive()
 
         webView = findViewById(R.id.web_view)
+        nativeView = findViewById(R.id.native_view)
         hint = findViewById(R.id.player_hint)
         failed = findViewById(R.id.player_failed)
         val warning = findViewById<TextView>(R.id.webview_warning)
@@ -69,10 +79,19 @@ class PlayerActivity : Activity() {
                 season = intent.getIntExtra(PlayerIntent.EXTRA_SEASON, 1),
                 episode = intent.getIntExtra(PlayerIntent.EXTRA_EPISODE, 1)
             ),
-            onEnded = { main.post { onEnded() } }
+            onEnded = { main.post { onEnded() } },
+            onManifest = { m -> main.post { onManifest(m) } },
+            onCaptions = { c ->
+                main.post {
+                    captions = c
+                    if (BuildConfig.DEBUG) Log.d("FloxPlayer", "captions ${c.size}")
+                }
+            }
         )
 
-        val noShield = BuildConfig.DEBUG && getSharedPreferences("flox_debug", MODE_PRIVATE).getBoolean("noShield", false)
+        val debugPrefs = getSharedPreferences("flox_debug", MODE_PRIVATE)
+        val noShield = BuildConfig.DEBUG && debugPrefs.getBoolean("noShield", false)
+        if (BuildConfig.DEBUG && debugPrefs.getBoolean("forceHevc", false)) Codecs.override = true
         AdBlock.enabled = !noShield
         val script = AdBlock.script(this)
         val docStart = !noShield && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)
@@ -97,6 +116,14 @@ class PlayerActivity : Activity() {
             userAgentString = userAgentString.replace("; wv", "").replace(Regex("Version/\\d+(\\.\\d+)* "), "")
         }
         webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
+        native = NativePlayer(
+            this,
+            nativeView,
+            bridge,
+            userAgent = webView.settings.userAgentString,
+            onFirstFrame = ::showNative,
+            onFailed = ::onNativeFailed
+        )
         webView.setBackgroundColor(0xFF000000.toInt())
         chrome = FloxChromeClient(this)
         webView.webChromeClient = chrome
@@ -117,6 +144,9 @@ class PlayerActivity : Activity() {
     private fun load() {
         bridge.reset()
         exitNav()
+        native.stop()
+        nativeShown = false
+        captions = emptyList()
         failed.visibility = View.GONE
         webView.visibility = View.VISIBLE
         main.removeCallbacks(watchdog)
@@ -128,6 +158,46 @@ class PlayerActivity : Activity() {
     private fun onPageReady(view: WebView) {
         view.evaluateJavascript(AdBlock.navScript(this), null)
         if (startAt > 0) view.evaluateJavascript("window.__floxApplyStart && window.__floxApplyStart($startAt)", null)
+    }
+
+    private fun onManifest(m: PlayerBridge.Manifest) {
+        if (!nativeAllowed || native.active || isFinishing || isDestroyed) return
+        if (BuildConfig.DEBUG) Log.d("FloxPlayer", "native ${m.kind} ${m.url.take(80)}")
+        // the page may have started; carry its position over
+        val at = maxOf(startAt, bridge.currentTime.toInt())
+        pageVideo("pause")
+        native.start(m, captions, at)
+    }
+
+    private fun pageVideo(action: String) =
+        webView.evaluateJavascript("document.querySelectorAll('video').forEach(function(v){try{v.$action()}catch(e){}})", null)
+
+    private fun showNative() {
+        if (nativeShown || isFinishing || isDestroyed) return
+        nativeShown = true
+        exitNav()
+        // the player view sits under the page; hiding the page reveals it
+        webView.visibility = View.INVISIBLE
+        // the page has done its job; stop it so it does not keep decoding underneath
+        webView.stopLoading()
+        webView.loadUrl("about:blank")
+        nativeView.requestFocus()
+    }
+
+    private fun onNativeFailed(reason: String) {
+        if (isFinishing || isDestroyed) return
+        if (BuildConfig.DEBUG) Log.d("FloxPlayer", "native failed: $reason")
+        val at = native.currentSeconds()
+        native.stop()
+        nativeAllowed = false
+        if (nativeShown) {
+            // the page was unloaded; bring it back as the player
+            startAt = maxOf(startAt, at)
+            showHint(getString(R.string.player_reloading))
+            load()
+        } else {
+            pageVideo("play")
+        }
     }
 
     // one automatic reload covers transient source failures before giving up
@@ -143,7 +213,7 @@ class PlayerActivity : Activity() {
     }
 
     private fun reload() {
-        startAt = maxOf(startAt, bridge.currentTime.toInt())
+        startAt = maxOf(startAt, if (nativeShown) native.currentSeconds() else bridge.currentTime.toInt())
         showHint(getString(R.string.player_reloading))
         load()
     }
@@ -187,6 +257,7 @@ class PlayerActivity : Activity() {
             if (event.action == KeyEvent.ACTION_DOWN) onBack()
             return true
         }
+        if (nativeShown) return dispatchNativeKey(event)
         val isCenter = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
         if (isCenter && failed.visibility == View.VISIBLE) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -251,8 +322,40 @@ class PlayerActivity : Activity() {
         return true
     }
 
+    private fun dispatchNativeKey(event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (code == KeyEvent.KEYCODE_MENU) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (event.repeatCount == 0) menuLongPressed = false
+                else if (!menuLongPressed) { menuLongPressed = true; retried = false; reload() }
+            } else if (!menuLongPressed) cycleSubtitles()
+            return true
+        }
+        // while the controls are up, the player view owns the D-pad
+        if (nativeView.isControllerFullyVisible) return nativeView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
+        if (event.action != KeyEvent.ACTION_DOWN) return true
+        when (code) {
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> native.togglePlay()
+            KeyEvent.KEYCODE_MEDIA_PLAY -> native.play()
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> native.pause()
+            KeyEvent.KEYCODE_DPAD_LEFT -> native.seekBy(-10)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> native.seekBy(10)
+            KeyEvent.KEYCODE_MEDIA_REWIND -> native.seekBy(-30)
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> native.seekBy(30)
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> nativeView.showController()
+            else -> return super.dispatchKeyEvent(event)
+        }
+        return true
+    }
+
+    private fun cycleSubtitles() {
+        val label = native.cycleSubtitles()
+        showHint(if (label == null) getString(R.string.player_subtitles_off) else getString(R.string.player_subtitles_on, label.uppercase()))
+    }
+
     private fun onBack() {
         when {
+            nativeShown && nativeView.isControllerFullyVisible -> nativeView.hideController()
             chrome.hasCustomView -> chrome.hideCustomView()
             navMode -> webView.evaluateJavascript("window.__flox?__flox.closePanel():false") { result ->
                 if (result != "true") exitNav()
@@ -300,6 +403,7 @@ class PlayerActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
+        native.pause()
         webView.onPause()
         webView.pauseTimers()
     }
@@ -313,6 +417,7 @@ class PlayerActivity : Activity() {
     override fun onDestroy() {
         scope.cancel()
         main.removeCallbacksAndMessages(null)
+        native.stop()
         chrome.hideCustomView()
         (webView.parent as? ViewGroup)?.removeView(webView)
         webView.stopLoading()

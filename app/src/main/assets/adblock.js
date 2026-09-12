@@ -253,6 +253,91 @@
     }, "fetch")
   } catch (e) {}
 
+  // Report the manifest the page player fetches, plus the source's caption list, so the app can play natively
+  try {
+    var reported = {}
+    var send = function (type, data) {
+      try { if (window.FloxBridge) window.FloxBridge.onMessage(JSON.stringify({ type: type, data: data })) } catch (e) {}
+    }
+    var manifestKind = function (url, text) {
+      if (typeof text !== "string" || text.length < 16) return null
+      var head = text.slice(0, 4096)
+      if (head.indexOf("#EXTM3U") === 0) return "hls"
+      if (head.indexOf("<MPD") >= 0) return "dash"
+      return null
+    }
+    var reportManifest = function (url, text, headers) {
+      var kind = manifestKind(url, text)
+      if (!kind || !url || reported[url]) return
+      reported[url] = true
+      send("FLOX_MANIFEST", { url: url, kind: kind, headers: headers || {} })
+    }
+    var reportStream = function (text) {
+      if (typeof text !== "string" || text.indexOf("captions") < 0) return
+      try {
+        var data = JSON.parse(text)
+        var stream = data && data.stream
+        if (!stream || !Array.isArray(stream.captions)) return
+        send("FLOX_STREAM", {
+          captions: stream.captions.filter(function (c) { return c && c.url }).map(function (c) {
+            return { url: c.url, language: c.language || "", type: c.type || "" }
+          })
+        })
+      } catch (e) {}
+    }
+    var xhrOpen = XMLHttpRequest.prototype.open
+    var xhrSend = XMLHttpRequest.prototype.send
+    var xhrSetHeader = XMLHttpRequest.prototype.setRequestHeader
+    XMLHttpRequest.prototype.open = native(function open(method, url) {
+      this.__floxUrl = String(url)
+      this.__floxHeaders = {}
+      return xhrOpen.apply(this, arguments)
+    }, "open")
+    XMLHttpRequest.prototype.setRequestHeader = native(function setRequestHeader(name, value) {
+      try { if (this.__floxHeaders) this.__floxHeaders[String(name)] = String(value) } catch (e) {}
+      return xhrSetHeader.apply(this, arguments)
+    }, "setRequestHeader")
+    XMLHttpRequest.prototype.send = native(function send() {
+      var xhr = this
+      try {
+        xhr.addEventListener("loadend", function () {
+          try {
+            if (xhr.status < 200 || xhr.status >= 300) return
+            if (xhr.responseType !== "" && xhr.responseType !== "text") return
+            var text = xhr.responseText
+            reportManifest(xhr.responseURL || xhr.__floxUrl, text, xhr.__floxHeaders)
+            reportStream(text)
+          } catch (e) {}
+        })
+      } catch (e) {}
+      return xhrSend.apply(this, arguments)
+    }, "send")
+    var sniffFetch = window.fetch
+    window.fetch = native(function fetch(input, init) {
+      var headers = {}
+      try {
+        var h = init && init.headers
+        if (h && typeof h.forEach === "function") h.forEach(function (v, k) { headers[k] = v })
+        else if (h) Object.keys(h).forEach(function (k) { headers[k] = h[k] })
+      } catch (e) {}
+      return sniffFetch.call(window, input, init).then(function (res) {
+        try {
+          var ct = (res.headers.get("content-type") || "").toLowerCase()
+          var url = res.url || String(input && input.url || input)
+          var maybeManifest = /mpegurl|dash\+xml|\.m3u8|\.mpd/i.test(ct + " " + url)
+          var maybeStream = ct.indexOf("json") >= 0
+          if (res.ok && (maybeManifest || maybeStream)) {
+            res.clone().text().then(function (text) {
+              if (maybeManifest) reportManifest(url, text, headers)
+              if (maybeStream) reportStream(text)
+            }).catch(function () {})
+          }
+        } catch (e) {}
+        return res
+      })
+    }, "fetch")
+  } catch (e) {}
+
   // beforeunload
   try {
     window.onbeforeunload = null
