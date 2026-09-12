@@ -2,7 +2,7 @@
 
 Minimal Android TV client for embedded movie players. Kotlin, plain Views, one WebView.
 
-Primary provider is Vidking (TMDB ids, keyboard-native player, H.264 HLS). Source lists are capped at 1080p so low-end boxes never get handed a 4K stream. VidFast is the automatic fallback when the primary produces no playback within 45 s or fails to load. Long-press MENU switches provider by hand.
+Primary provider is VidFast (TMDB ids). Source lists are capped at 1080p so low-end boxes never get handed a 4K stream. Vidking is the automatic fallback when the primary produces no playback within 45 s or fails to load. Long-press MENU switches provider by hand.
 
 ## Build
 

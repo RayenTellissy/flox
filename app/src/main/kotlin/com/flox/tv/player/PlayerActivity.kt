@@ -38,7 +38,7 @@ class PlayerActivity : Activity() {
     private val hideHint = Runnable { hint.visibility = View.GONE }
     private val watchdog = Runnable { if (!bridge.hasPlayback) fallback("no playback") }
 
-    private var provider = Provider.VIDKING
+    private var provider = Provider.VIDFAST
     private var navMode = false
     private var centerLongPressed = false
     private var menuLongPressed = false
