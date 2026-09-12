@@ -71,4 +71,16 @@
         <item name="android:background">@drawable/bg_button_ghost</item>
         <item name="android:textColor">@color/text_secondary</item>
     </style>
+
+    <!-- Square icon button for the player overlay. 48dp glyph, 2px ring on focus. -->
+    <style name="PlayerIconButton">
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:padding">@dimen/space_12</item>
+        <item name="android:layout_marginStart">@dimen/space_8</item>
+        <item name="android:layout_marginEnd">@dimen/space_8</item>
+        <item name="android:background">@drawable/bg_focusable</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:focusable">true</item>
+    </style>
 </resources>

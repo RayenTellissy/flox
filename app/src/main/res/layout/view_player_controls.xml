@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_player_scrim" />
+
+    <ImageButton
+        android:id="@+id/controls_back"
+        style="@style/PlayerIconButton"
+        android:layout_gravity="top|start"
+        android:layout_margin="@dimen/screen_padding"
+        android:contentDescription="@string/player_back"
+        android:src="@drawable/ic_player_back" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:padding="@dimen/screen_padding">
+
+        <TextView
+            android:id="@+id/controls_eyebrow"
+            style="@style/Text.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/controls_title"
+            style="@style/Text.Heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_8"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <com.flox.tv.player.SeekBarView
+            android:id="@+id/controls_seek"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_marginTop="@dimen/space_24"
+            android:nextFocusDown="@id/controls_play_pause" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_8"
+            android:paddingStart="@dimen/space_8"
+            android:paddingEnd="@dimen/space_8"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/controls_position"
+                style="@style/Text.Eyebrow"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/geist_mono_medium"
+                android:textColor="@color/text_primary" />
+
+            <TextView
+                android:id="@+id/controls_duration"
+                style="@style/Text.Eyebrow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_16"
+            android:gravity="center_horizontal"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/controls_rewind"
+                style="@style/PlayerIconButton"
+                android:contentDescription="@string/player_rewind"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_rewind" />
+
+            <ImageButton
+                android:id="@+id/controls_play_pause"
+                style="@style/PlayerIconButton"
+                android:contentDescription="@string/player_play_pause"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_play" />
+
+            <ImageButton
+                android:id="@+id/controls_forward"
+                style="@style/PlayerIconButton"
+                android:contentDescription="@string/player_forward"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_forward" />
+
+            <ImageButton
+                android:id="@+id/controls_subtitles"
+                style="@style/PlayerIconButton"
+                android:layout_marginStart="@dimen/space_32"
+                android:contentDescription="@string/player_subtitles"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_subtitles"
+                android:visibility="gone" />
+
+            <ImageButton
+                android:id="@+id/controls_next"
+                style="@style/PlayerIconButton"
+                android:contentDescription="@string/player_next"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_next"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</merge>

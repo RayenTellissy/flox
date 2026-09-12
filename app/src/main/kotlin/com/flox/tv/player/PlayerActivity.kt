@@ -33,6 +33,7 @@ class PlayerActivity : Activity() {
     private lateinit var webView: WebView
     private lateinit var nativeView: PlayerView
     private lateinit var native: NativePlayer
+    private lateinit var controls: PlayerControls
     private lateinit var hint: TextView
     private lateinit var failed: TextView
     private lateinit var chrome: FloxChromeClient
@@ -52,6 +53,7 @@ class PlayerActivity : Activity() {
     private var centerLongPressed = false
     private var menuLongPressed = false
     private var startAt = 0
+    private var episodeCount = 0
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,6 +64,7 @@ class PlayerActivity : Activity() {
 
         webView = findViewById(R.id.web_view)
         nativeView = findViewById(R.id.native_view)
+        controls = findViewById(R.id.player_controls)
         hint = findViewById(R.id.player_hint)
         failed = findViewById(R.id.player_failed)
         val warning = findViewById<TextView>(R.id.webview_warning)
@@ -124,6 +127,12 @@ class PlayerActivity : Activity() {
             onFirstFrame = ::showNative,
             onFailed = ::onNativeFailed
         )
+        native.onTracksChanged = { controls.setSubtitlesAvailable(native.hasSubtitles()) }
+        controls.onPlayPause = { native.togglePlay() }
+        controls.onSeekBy = { s -> native.seekBy(s) }
+        controls.onSubtitles = { cycleSubtitles() }
+        controls.onNext = { playNext() }
+        controls.onBack = { finish() }
         webView.setBackgroundColor(0xFF000000.toInt())
         chrome = FloxChromeClient(this)
         webView.webChromeClient = chrome
@@ -138,16 +147,25 @@ class PlayerActivity : Activity() {
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
         webView.requestFocus()
-        load()
+        val debugManifest = if (BuildConfig.DEBUG) intent.getStringExtra("debugManifest") else null
+        if (debugManifest != null) {
+            // debug builds can bypass the page and play a manifest straight away
+            refreshNext()
+            native.start(PlayerBridge.Manifest(debugManifest, "hls", emptyMap()), emptyList(), startAt)
+        } else {
+            load()
+        }
     }
 
     private fun load() {
         bridge.reset()
         exitNav()
         native.stop()
+        controls.hide()
         nativeShown = false
         captions = emptyList()
         failed.visibility = View.GONE
+        refreshNext()
         webView.visibility = View.VISIBLE
         main.removeCallbacks(watchdog)
         main.postDelayed(watchdog, WATCHDOG_MS)
@@ -181,7 +199,29 @@ class PlayerActivity : Activity() {
         // the page has done its job; stop it so it does not keep decoding underneath
         webView.stopLoading()
         webView.loadUrl("about:blank")
+        controls.bind(native, bridge.meta)
+        controls.setSubtitlesAvailable(native.hasSubtitles())
         nativeView.requestFocus()
+    }
+
+    private fun refreshNext() {
+        val m = bridge.meta
+        controls.setNextAvailable(m.type == MediaType.TV && m.episode < episodeCount)
+        if (m.type != MediaType.TV || episodeCount > 0) return
+        scope.launch {
+            episodeCount = Tmdb.episodes(m.id, m.season).getOrNull()?.size ?: 0
+            controls.setNextAvailable(m.episode < episodeCount)
+        }
+    }
+
+    private fun playNext() {
+        val m = bridge.meta
+        if (m.type != MediaType.TV || m.episode >= episodeCount) return
+        m.episode += 1
+        startAt = 0
+        retried = false
+        showHint(getString(R.string.player_next_episode, m.season, m.episode))
+        load()
     }
 
     private fun onNativeFailed(reason: String) {
@@ -225,16 +265,8 @@ class PlayerActivity : Activity() {
             return
         }
         scope.launch {
-            val count = Tmdb.episodes(m.id, m.season).getOrNull()?.size ?: 0
-            if (m.episode < count) {
-                m.episode += 1
-                startAt = 0
-                retried = false
-                showHint(getString(R.string.player_next_episode, m.season, m.episode))
-                load()
-            } else {
-                finish()
-            }
+            if (episodeCount == 0) episodeCount = Tmdb.episodes(m.id, m.season).getOrNull()?.size ?: 0
+            if (m.episode < episodeCount) playNext() else finish()
         }
     }
 
@@ -331,21 +363,40 @@ class PlayerActivity : Activity() {
             } else if (!menuLongPressed) cycleSubtitles()
             return true
         }
-        // while the controls are up, the player view owns the D-pad
-        if (nativeView.isControllerFullyVisible) return nativeView.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
+        // media keys work whether or not the overlay is up
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val handled = when (code) {
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { native.togglePlay(); true }
+                KeyEvent.KEYCODE_MEDIA_PLAY -> { native.play(); true }
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> { native.pause(); true }
+                KeyEvent.KEYCODE_MEDIA_REWIND -> { seekHidden(-30); true }
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekHidden(30); true }
+                else -> false
+            }
+            if (handled) {
+                if (controls.shown) controls.touch()
+                return true
+            }
+        }
+        // while the overlay is up, focus navigation owns the D-pad
+        if (controls.shown) {
+            controls.touch()
+            return super.dispatchKeyEvent(event)
+        }
         if (event.action != KeyEvent.ACTION_DOWN) return true
         when (code) {
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> native.togglePlay()
-            KeyEvent.KEYCODE_MEDIA_PLAY -> native.play()
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> native.pause()
-            KeyEvent.KEYCODE_DPAD_LEFT -> native.seekBy(-10)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> native.seekBy(10)
-            KeyEvent.KEYCODE_MEDIA_REWIND -> native.seekBy(-30)
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> native.seekBy(30)
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> nativeView.showController()
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> native.togglePlay()
+            KeyEvent.KEYCODE_DPAD_LEFT -> seekHidden(-PlayerControls.seekStep(event.repeatCount))
+            KeyEvent.KEYCODE_DPAD_RIGHT -> seekHidden(PlayerControls.seekStep(event.repeatCount))
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> controls.show()
             else -> return super.dispatchKeyEvent(event)
         }
         return true
+    }
+
+    private fun seekHidden(seconds: Int) {
+        native.seekBy(seconds)
+        showHint(getString(R.string.player_seek_fmt, if (seconds < 0) "-" else "+", kotlin.math.abs(seconds)))
     }
 
     private fun cycleSubtitles() {
@@ -355,7 +406,7 @@ class PlayerActivity : Activity() {
 
     private fun onBack() {
         when {
-            nativeShown && nativeView.isControllerFullyVisible -> nativeView.hideController()
+            nativeShown && controls.shown -> controls.hide()
             chrome.hasCustomView -> chrome.hideCustomView()
             navMode -> webView.evaluateJavascript("window.__flox?__flox.closePanel():false") { result ->
                 if (result != "true") exitNav()
@@ -417,6 +468,7 @@ class PlayerActivity : Activity() {
     override fun onDestroy() {
         scope.cancel()
         main.removeCallbacksAndMessages(null)
+        controls.release()
         native.stop()
         chrome.hideCustomView()
         (webView.parent as? ViewGroup)?.removeView(webView)
