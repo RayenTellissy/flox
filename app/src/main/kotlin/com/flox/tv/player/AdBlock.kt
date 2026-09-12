@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger
 object AdBlock {
     private const val TAG = "FloxAdBlock"
 
-    val PLAYER_HOSTS: Set<String> get() = Provider.ALL_HOSTS
+    val PLAYER_HOSTS: Set<String> get() = Provider.HOSTS
 
     val CDN_ALLOW = setOf(
         "image.tmdb.org", "tmdb.org", "cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com",

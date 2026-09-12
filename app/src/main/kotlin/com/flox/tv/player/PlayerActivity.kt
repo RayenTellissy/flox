@@ -36,9 +36,9 @@ class PlayerActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
     private val scope = MainScope()
     private val hideHint = Runnable { hint.visibility = View.GONE }
-    private val watchdog = Runnable { if (!bridge.hasPlayback) fallback("no playback") }
+    private val watchdog = Runnable { if (!bridge.hasPlayback) onLoadFailed("no playback") }
 
-    private var provider = Provider.VIDSRC
+    private var retried = false
     private var navMode = false
     private var centerLongPressed = false
     private var menuLongPressed = false
@@ -103,7 +103,7 @@ class PlayerActivity : Activity() {
         webView.webViewClient = FloxWebViewClient(
             fallbackScript = if (docStart || noShield) null else script,
             onPageReady = ::onPageReady,
-            onPlaybackFailed = { fallback("load error") }
+            onPlaybackFailed = { onLoadFailed("load error") }
         )
         webView.addJavascriptInterface(bridge, "FloxBridge")
         if (docStart) WebViewCompat.addDocumentStartJavaScript(webView, script, setOf("*"))
@@ -122,7 +122,7 @@ class PlayerActivity : Activity() {
         main.removeCallbacks(watchdog)
         main.postDelayed(watchdog, WATCHDOG_MS)
         val m = bridge.meta
-        webView.loadUrl(provider.url(m.id, m.type, m.season, m.episode, startAt))
+        webView.loadUrl(Provider.url(m.id, m.type, m.season, m.episode, startAt))
     }
 
     private fun onPageReady(view: WebView) {
@@ -130,24 +130,21 @@ class PlayerActivity : Activity() {
         if (startAt > 0) view.evaluateJavascript("window.__floxApplyStart && window.__floxApplyStart($startAt)", null)
     }
 
-    private fun fallback(reason: String) {
+    // one automatic reload covers transient source failures before giving up
+    private fun onLoadFailed(reason: String) {
         if (isFinishing || isDestroyed) return
-        if (BuildConfig.DEBUG) Log.d("FloxPlayer", "fallback from ${provider.name}: $reason")
-        val next = provider.next()
-        if (next == null) {
+        if (BuildConfig.DEBUG) Log.d("FloxPlayer", "load failed: $reason")
+        if (retried) {
             showFailed()
             return
         }
-        provider = next
-        startAt = maxOf(startAt, bridge.currentTime.toInt())
-        showHint(getString(R.string.player_switching, next.label))
-        load()
+        retried = true
+        reload()
     }
 
-    private fun switchProvider() {
-        provider = provider.next() ?: Provider.entries.first()
-        startAt = bridge.currentTime.toInt()
-        showHint(getString(R.string.player_switching, provider.label))
+    private fun reload() {
+        startAt = maxOf(startAt, bridge.currentTime.toInt())
+        showHint(getString(R.string.player_reloading))
         load()
     }
 
@@ -162,6 +159,7 @@ class PlayerActivity : Activity() {
             if (m.episode < count) {
                 m.episode += 1
                 startAt = 0
+                retried = false
                 showHint(getString(R.string.player_next_episode, m.season, m.episode))
                 load()
             } else {
@@ -190,6 +188,13 @@ class PlayerActivity : Activity() {
             return true
         }
         val isCenter = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
+        if (isCenter && failed.visibility == View.VISIBLE) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                retried = false
+                reload()
+            }
+            return true
+        }
         if (isCenter) {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> {
@@ -213,7 +218,8 @@ class PlayerActivity : Activity() {
                         menuLongPressed = false
                     } else if (!menuLongPressed) {
                         menuLongPressed = true
-                        switchProvider()
+                        retried = false
+                        reload()
                     }
                 }
                 KeyEvent.ACTION_UP -> if (!menuLongPressed) openSettings()

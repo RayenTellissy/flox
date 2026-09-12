@@ -177,8 +177,12 @@
     var v = video()
     return v ? { currentTime: v.currentTime || 0, duration: v.duration || 0, paused: v.paused, ended: v.ended } : null
   }
+  // the player autoplays muted without a user gesture; unmute once playback is running
+  var unmuted = false
   setInterval(function () {
     try {
+      var v = video()
+      if (!unmuted && v && !v.paused && v.currentTime > 0 && v.muted) { v.muted = false; unmuted = true }
       var s = state()
       if (s && window.FloxBridge) window.FloxBridge.onMessage(JSON.stringify({ type: "FLOX_TICK", data: s }))
     } catch (e) {}
