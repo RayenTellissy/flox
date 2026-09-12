@@ -139,6 +139,38 @@
     } catch (e) {}
   }
 
+  // Providers refuse "in-app browsers"; report client hints as Chrome rather than Android WebView
+  try {
+    var uadProto = Object.getPrototypeOf(navigator)
+    var uadDesc = Object.getOwnPropertyDescriptor(uadProto, "userAgentData")
+    if (uadDesc && uadDesc.get) {
+      var uadGet = uadDesc.get
+      var fixBrands = function (brands) {
+        return (brands || []).map(function (b) { return b.brand === "Android WebView" ? { brand: "Google Chrome", version: b.version } : b })
+      }
+      Object.defineProperty(uadProto, "userAgentData", {
+        configurable: true,
+        get: native(function userAgentData() {
+          var real = uadGet.call(this)
+          if (!real) return real
+          return {
+            brands: fixBrands(real.brands),
+            mobile: real.mobile,
+            platform: real.platform,
+            getHighEntropyValues: function (hints) {
+              return real.getHighEntropyValues(hints).then(function (v) {
+                v.brands = fixBrands(v.brands)
+                if (v.fullVersionList) v.fullVersionList = fixBrands(v.fullVersionList)
+                return v
+              })
+            },
+            toJSON: function () { return { brands: fixBrands(real.brands), mobile: real.mobile, platform: real.platform } }
+          }
+        }, "userAgentData")
+      })
+    }
+  } catch (e) {}
+
   // service workers bypass the app's request filter; keep everything on the main network path
   try {
     if (navigator.serviceWorker) {
