@@ -20,8 +20,8 @@ android {
         applicationId = "com.flox.tv"
         minSdk = 28
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.4.0"
+        versionCode = 8
+        versionName = "1.5.0"
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
         resourceConfigurations += listOf("en")
     }

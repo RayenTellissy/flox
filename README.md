@@ -26,9 +26,9 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | Key | Action |
 |-----|--------|
 | CENTER / PLAY-PAUSE | Play or pause |
-| LEFT / RIGHT | Seek 10 s |
+| LEFT / RIGHT | Seek 10 s, growing to 30 s and 60 s while held |
 | REWIND / FAST-FORWARD | Seek 30 s |
-| UP / DOWN | Show the native controls (seek bar, play). D-pad moves between buttons, BACK hides them |
+| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s |
 | MENU | Cycle subtitles: off, then each track, device language first |
 | UP / DOWN or long CENTER | Page player only: enter navigation mode over its buttons |
 | MENU | Page player only: open its settings panel in navigation mode |
