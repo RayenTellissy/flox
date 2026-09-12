@@ -22,5 +22,13 @@
     <string name="player_subtitles_on">SUBTITLES · %1$s</string>
     <string name="player_subtitles_off">SUBTITLES OFF</string>
     <string name="player_next_episode">NEXT · S%1$d E%2$d</string>
+    <string name="player_episode_stamp">S%1$d · E%2$d</string>
+    <string name="player_seek_fmt">%1$s%2$d S</string>
+    <string name="player_back">Back</string>
+    <string name="player_rewind">Rewind</string>
+    <string name="player_forward">Forward</string>
+    <string name="player_play_pause">Play or pause</string>
+    <string name="player_subtitles">Subtitles</string>
+    <string name="player_next">Next episode</string>
     <string name="webview_old">SYSTEM WEBVIEW IS OUTDATED · PLAYBACK MAY FAIL</string>
 </resources>
