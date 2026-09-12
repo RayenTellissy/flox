@@ -40,6 +40,8 @@ class NativePlayer(
     private var startApplied = false
 
     val active get() = player != null
+    /** Fires when the loaded tracks change, so the overlay can show or hide the subtitles button. */
+    var onTracksChanged: (() -> Unit)? = null
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -68,6 +70,10 @@ class NativePlayer(
                 if (startAtSec > 0 && (duration <= 0 || startAtSec * 1000L < duration - 5000L)) p.seekTo(startAtSec * 1000L)
             }
             if (state == Player.STATE_ENDED) ticker.run()
+        }
+
+        override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            onTracksChanged?.invoke()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -158,6 +164,12 @@ class NativePlayer(
     }
 
     fun currentSeconds(): Int = ((player?.currentPosition ?: 0L) / 1000L).toInt()
+    fun positionMs(): Long = player?.currentPosition ?: 0L
+    fun durationMs(): Long = player?.duration?.takeIf { it > 0 } ?: 0L
+    fun bufferedMs(): Long = player?.bufferedPosition ?: 0L
+
+    fun hasSubtitles(): Boolean =
+        player?.currentTracks?.groups?.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 } == true
 
     /** Steps through off and each subtitle track; returns the new track's label, or null for off. */
     fun cycleSubtitles(): String? {
