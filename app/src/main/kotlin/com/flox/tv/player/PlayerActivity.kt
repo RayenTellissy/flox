@@ -93,6 +93,8 @@ class PlayerActivity : Activity() {
             cacheMode = WebSettings.LOAD_DEFAULT
             useWideViewPort = true
             loadWithOverviewMode = true
+            // Providers refuse to play in "embedded browsers"; drop the WebView markers from the UA
+            userAgentString = userAgentString.replace("; wv", "").replace(Regex("Version/\\d+(\\.\\d+)* "), "")
         }
         webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
         webView.setBackgroundColor(0xFF000000.toInt())
