@@ -2,6 +2,8 @@
 <resources>
     <string name="app_name">Flox</string>
     <string name="row_continue">CONTINUE WATCHING</string>
+    <string name="row_library">LIBRARY</string>
+    <string name="state_connect_telegram">CONNECT TELEGRAM</string>
     <string name="row_trending_movies">TRENDING MOVIES</string>
     <string name="row_trending_tv">TRENDING TV</string>
     <string name="state_loading">LOADING</string>
@@ -30,5 +32,12 @@
     <string name="player_play_pause">Play or pause</string>
     <string name="player_subtitles">Subtitles</string>
     <string name="player_next">Next episode</string>
+    <string name="telegram_eyebrow">TELEGRAM</string>
+    <string name="telegram_title">Connect your library</string>
+    <string name="telegram_scan">SCAN WITH THE TELEGRAM APP · SETTINGS · DEVICES · LINK DESKTOP DEVICE</string>
+    <string name="telegram_password">TWO-STEP PASSWORD</string>
+    <string name="telegram_password_hint">Password</string>
+    <string name="telegram_submit">CONTINUE</string>
+    <string name="telegram_not_configured">TELEGRAM_API_ID AND TELEGRAM_API_HASH MISSING FROM LOCAL.PROPERTIES</string>
     <string name="webview_old">SYSTEM WEBVIEW IS OUTDATED · PLAYBACK MAY FAIL</string>
 </resources>

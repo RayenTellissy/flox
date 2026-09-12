@@ -40,6 +40,7 @@ class DetailsActivity : Activity() {
         list.layoutManager = LinearLayoutManager(this)
         list.setHasFixedSize(true)
         adapter = DetailsAdapter(::play, ::selectSeason, ::playEpisode)
+        adapter.mediaId = mediaId
         list.adapter = adapter
 
         adapter.rows.add(DetailsRow.State(R.string.state_loading))
@@ -53,7 +54,7 @@ class DetailsActivity : Activity() {
         val d = details ?: return
         if (adapter.rows.isNotEmpty() && adapter.rows[0] is DetailsRow.Header) {
             adapter.rows[0] = DetailsRow.Header(d, buttonText(), hasProgress())
-            adapter.notifyItemChanged(0)
+            adapter.notifyDataSetChanged()
         }
     }
 

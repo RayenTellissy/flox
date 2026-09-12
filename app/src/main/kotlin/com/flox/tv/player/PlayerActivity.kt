@@ -24,6 +24,10 @@ import com.flox.tv.BuildConfig
 import com.flox.tv.R
 import com.flox.tv.data.MediaType
 import com.flox.tv.data.Tmdb
+import com.flox.tv.telegram.Library
+import com.flox.tv.telegram.Telegram
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -54,6 +58,9 @@ class PlayerActivity : Activity() {
     private var menuLongPressed = false
     private var startAt = 0
     private var episodeCount = 0
+    // a library file that failed to play falls back to the page for this episode
+    private var libraryFailed = false
+    private var playingLibrary = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -168,9 +175,27 @@ class PlayerActivity : Activity() {
         refreshNext()
         webView.visibility = View.VISIBLE
         main.removeCallbacks(watchdog)
-        main.postDelayed(watchdog, WATCHDOG_MS)
         val m = bridge.meta
+        val entry = if (libraryFailed || !Telegram.ready) null
+            else Library.get(m.id, m.type, if (m.type == MediaType.TV) m.season else 0, if (m.type == MediaType.TV) m.episode else 0)
+        playingLibrary = entry != null
+        if (entry != null) {
+            playLibrary(entry)
+            return
+        }
+        main.postDelayed(watchdog, WATCHDOG_MS)
         webView.loadUrl(Provider.url(m.id, m.type, m.season, m.episode, startAt))
+    }
+
+    private fun playLibrary(entry: Library.Entry) {
+        if (BuildConfig.DEBUG) Log.d("FloxPlayer", "library ${entry.key} parts=${entry.parts.size} ${entry.codec}")
+        scope.launch {
+            val subtitle = withContext(Dispatchers.IO) {
+                entry.subtitleFileId?.let { id -> runCatching { Telegram.downloadFully(id) }.getOrNull() }
+            }
+            if (isFinishing || isDestroyed) return@launch
+            native.startLibrary(entry, subtitle, startAt)
+        }
     }
 
     private fun onPageReady(view: WebView) {
@@ -220,6 +245,7 @@ class PlayerActivity : Activity() {
         m.episode += 1
         startAt = 0
         retried = false
+        libraryFailed = false
         showHint(getString(R.string.player_next_episode, m.season, m.episode))
         load()
     }
@@ -229,7 +255,7 @@ class PlayerActivity : Activity() {
         if (BuildConfig.DEBUG) Log.d("FloxPlayer", "native failed: $reason")
         val at = native.currentSeconds()
         native.stop()
-        nativeAllowed = false
+        if (playingLibrary) libraryFailed = true else nativeAllowed = false
         if (nativeShown) {
             // the page was unloaded; bring it back as the player
             startAt = maxOf(startAt, at)

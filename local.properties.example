@@ -4,3 +4,7 @@ KEYSTORE_FILE=keystore/flox.jks
 KEYSTORE_PASSWORD=
 KEY_ALIAS=flox
 KEY_PASSWORD=
+
+# https://my.telegram.org/apps, enables the Telegram library
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=

@@ -4,6 +4,20 @@ Minimal Android TV client. Kotlin, plain Views, one WebView that resolves the st
 
 Source is VidLink (TMDB ids). The page is loaded in a hidden WebView only to resolve the stream: a document-start hook reports the HLS or DASH manifest its player fetches, plus the caption list from the source response, and the app plays that manifest in ExoPlayer with the page's Referer and Origin. Captions load as side-loaded subtitle tracks, off by default. Once the first frame renders the page is unloaded. If the native player errors, playback falls back to the page player for the rest of the session. Video is capped at 1080p, and boxes without a hardware HEVC decoder hide HEVC so an HEVC-only source falls back instead of stuttering. A failed or stalled load (no playback within 45 s) is reloaded once automatically; after that the failed screen is shown and CENTER retries. Long-press MENU reloads by hand.
 
+## Library (Telegram)
+
+Episodes and movies uploaded to a private Telegram channel play natively without the page. The channel is named `Flox Library` and holds one document per file with a JSON caption:
+
+```
+{"tmdb": 1399, "type": "tv", "s": 1, "e": 3, "quality": "1080p", "codec": "hevc", "part": 1, "parts": 2}
+```
+
+Movies omit `s` and `e`. Files over 2 GB are split into numbered parts and stitched back by byte offset at playback. An English `.srt` posted as a reply to part 1 becomes the subtitle track. The Mac companion app fills the channel; the TV app only reads it.
+
+Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `local.properties`. Without them the library row stays hidden. On the TV, the `LIBRARY` row shows `CONNECT TELEGRAM`; it opens a QR code to scan from the Telegram app (Settings, Devices, Link Desktop Device). Uploaded episodes carry a `LIBRARY` stamp on the details screen and play from Telegram first, falling back to the page if the file fails.
+
+TDLib is bundled as `app/src/main/jniLibs/<abi>/libtdjni.so` plus the generated `org.drinkless.tdlib` Java classes, built from tdlib/td commit `d1085f9` with `example/android/build-tdlib.sh` for `arm64-v8a` and `armeabi-v7a`. Rebuild both together when upgrading.
+
 ## Build
 
 Requires Android SDK (platform 34) and a JDK 17+. Copy `local.properties.example` to `local.properties` and fill in the values.

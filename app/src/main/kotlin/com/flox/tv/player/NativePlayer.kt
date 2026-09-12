@@ -20,6 +20,8 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import com.flox.tv.BuildConfig
+import com.flox.tv.telegram.Library
+import com.flox.tv.telegram.TdDataSource
 
 /**
  * Plays the manifest the page resolved, with the page's request headers, in ExoPlayer.
@@ -84,8 +86,6 @@ class NativePlayer(
 
     fun start(manifest: PlayerBridge.Manifest, captions: List<PlayerBridge.Caption>, startAt: Int) {
         stop()
-        startAtSec = startAt
-        startApplied = false
         val headers = mutableMapOf(
             "Referer" to "https://${Provider.HOST}/",
             "Origin" to "https://${Provider.HOST}"
@@ -97,22 +97,6 @@ class NativePlayer(
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
-        val selector = DefaultTrackSelector(ctx).apply {
-            setParameters(
-                buildUponParameters()
-                    .setMaxVideoSize(1920, 1080)
-                    .setPreferredTextLanguage(null)
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-            )
-        }
-        // no hardware HEVC decoder: hide HEVC entirely so an HEVC-only source fails fast and falls back to the page
-        val noHevc = !Codecs.hasHevcDecoder()
-        val renderers = DefaultRenderersFactory(ctx)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
-            .setMediaCodecSelector { mime, secure, tunneling ->
-                val infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
-                if (noHevc && mime.equals(MimeTypes.VIDEO_H265, true)) emptyList() else infos
-            }
         val preferred = java.util.Locale.getDefault().getDisplayLanguage(java.util.Locale.ENGLISH)
         val ordered = captions.sortedBy { if (it.language.equals(preferred, true)) 0 else 1 }
         val subtitles = ordered.mapNotNull { c ->
@@ -133,8 +117,51 @@ class NativePlayer(
             .setMimeType(mime)
             .setSubtitleConfigurations(subtitles)
             .build()
+        launch(http, item, startAt)
+    }
+
+    /** Plays a file from the Telegram library through the stitching data source. */
+    fun startLibrary(entry: Library.Entry, subtitlePath: String?, startAt: Int) {
+        stop()
+        val subtitles = subtitlePath?.let { path ->
+            val mime = if (path.endsWith(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP
+            listOf(
+                MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(java.io.File(path)))
+                    .setMimeType(mime)
+                    .setLabel("English")
+                    .setLanguage("en")
+                    .build()
+            )
+        } ?: emptyList()
+        val k = entry.key
+        val item = MediaItem.Builder()
+            .setUri("tg://library/${k.tmdb}/${k.type.tmdb}/${k.season}/${k.episode}")
+            .setSubtitleConfigurations(subtitles)
+            .build()
+        launch(TdDataSource.Factory(entry), item, startAt)
+    }
+
+    private fun launch(factory: androidx.media3.datasource.DataSource.Factory, item: MediaItem, startAt: Int) {
+        startAtSec = startAt
+        startApplied = false
+        val selector = DefaultTrackSelector(ctx).apply {
+            setParameters(
+                buildUponParameters()
+                    .setMaxVideoSize(1920, 1080)
+                    .setPreferredTextLanguage(null)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            )
+        }
+        // no hardware HEVC decoder: hide HEVC entirely so an HEVC-only source fails fast and falls back to the page
+        val noHevc = !Codecs.hasHevcDecoder()
+        val renderers = DefaultRenderersFactory(ctx)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            .setMediaCodecSelector { mime, secure, tunneling ->
+                val infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
+                if (noHevc && mime.equals(MimeTypes.VIDEO_H265, true)) emptyList() else infos
+            }
         val p = ExoPlayer.Builder(ctx, renderers)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(factory))
             .setTrackSelector(selector)
             .build()
         p.addListener(listener)
