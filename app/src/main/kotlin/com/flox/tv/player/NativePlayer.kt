@@ -38,6 +38,7 @@ class NativePlayer(
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var player: ExoPlayer? = null
+    private val loudness = Loudness()
     private var startAtSec = 0
     private var startApplied = false
 
@@ -64,7 +65,10 @@ class NativePlayer(
     private val listener = object : Player.Listener {
         override fun onRenderedFirstFrame() = onFirstFrame()
 
+        override fun onAudioSessionIdChanged(audioSessionId: Int) = loudness.attach(audioSessionId)
+
         override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_READY) player?.let { loudness.attach(it.audioSessionId) }
             val p = player ?: return
             if (state == Player.STATE_READY && !startApplied) {
                 startApplied = true
@@ -226,6 +230,7 @@ class NativePlayer(
         val p = player ?: return
         player = null
         view.player = null
+        loudness.release()
         p.removeListener(listener)
         p.release()
     }
