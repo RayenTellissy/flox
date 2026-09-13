@@ -158,7 +158,9 @@ class NativePlayer(
         val renderers = DefaultRenderersFactory(ctx)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             .setMediaCodecSelector { mime, secure, tunneling ->
-                val infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
+                var infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
+                // the emulator's goldfish decoders render with swapped chroma; debug builds prefer the software ones
+                if (BuildConfig.DEBUG && infos.any { !it.name.contains("goldfish") }) infos = infos.filter { !it.name.contains("goldfish") }
                 if (noHevc && mime.equals(MimeTypes.VIDEO_H265, true)) emptyList() else infos
             }
         val p = ExoPlayer.Builder(ctx, renderers)
