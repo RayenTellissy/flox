@@ -29,6 +29,9 @@ object Library {
 
     fun has(tmdb: Int, type: MediaType, season: Int = 0, episode: Int = 0) = get(tmdb, type, season, episode) != null
 
+    /** Season numbers of a show that have at least one uploaded episode. */
+    fun seasons(tmdb: Int): Set<Int> = entries.keys.filter { it.tmdb == tmdb && it.type == MediaType.TV }.map { it.season }.toSet()
+
     suspend fun refresh(chatTitle: String = DEFAULT_CHAT): Boolean {
         if (!Telegram.ready) return false
         val chat = Telegram.chatByTitle(chatTitle)

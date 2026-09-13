@@ -45,7 +45,7 @@ class HomeActivity : Activity() {
         search.setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
 
         continueRow = Row(findViewById(R.id.row_continue), R.string.row_continue, R.drawable.ic_continue) { openContinue(it) }
-        libraryRow = Row(findViewById(R.id.row_library), R.string.row_library, R.drawable.ic_movie) { openDetails(it) }
+        libraryRow = Row(findViewById(R.id.row_library), R.string.row_library, R.drawable.ic_movie) { openDetails(it, libraryOnly = true) }
         if (Telegram.configured) {
             libraryRow.root.visibility = View.VISIBLE
             libraryRow.onStateClick { startActivity(Intent(this, TelegramLoginActivity::class.java)) }
@@ -115,11 +115,12 @@ class HomeActivity : Activity() {
         )
     }
 
-    private fun openDetails(card: CardItem) {
+    private fun openDetails(card: CardItem, libraryOnly: Boolean = false) {
         startActivity(
             Intent(this, DetailsActivity::class.java)
                 .putExtra(DetailsActivity.EXTRA_ID, card.id)
                 .putExtra(DetailsActivity.EXTRA_TYPE, card.type.tmdb)
+                .putExtra(DetailsActivity.EXTRA_LIBRARY, libraryOnly)
         )
     }
 
