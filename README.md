@@ -14,6 +14,8 @@ Episodes and movies uploaded to a private Telegram channel play natively without
 
 Movies omit `s` and `e`. Files over 2 GB are split into numbered parts and stitched back by byte offset at playback. An English `.srt` posted as a reply to part 1 becomes the subtitle track. The Mac companion app fills the channel; the TV app only reads it.
 
+Opening a title from the `LIBRARY` row lists only the seasons and episodes that were uploaded; search and trending show everything with the stamp. Files split into parts stream through a sliding 64 MB download window, so playback and seeking start without fetching the whole file.
+
 Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `local.properties`. Without them the library row stays hidden. On the TV, the `LIBRARY` row shows `CONNECT TELEGRAM`; it opens a QR code to scan from the Telegram app (Settings, Devices, Link Desktop Device). Uploaded episodes carry a `LIBRARY` stamp on the details screen and play from Telegram first, falling back to the page if the file fails.
 
 TDLib is bundled as `app/src/main/jniLibs/<abi>/libtdjni.so` plus the generated `org.drinkless.tdlib` Java classes, built from tdlib/td commit `d1085f9` with `example/android/build-tdlib.sh` for `arm64-v8a` and `armeabi-v7a`. Rebuild both together when upgrading.
@@ -52,7 +54,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 Navigation mode uses the app's own focus logic (nearest button in the pressed direction, 2 px square ring), so it does not depend on the WebView's built-in spatial navigation.
 
-Progress is written every 2 s from whichever player is active. In the page player, which autoplays muted without a user gesture, the app unmutes once playback is running. When an episode ends the app loads the next one from TMDB's episode list.
+Native playback runs an 8 dB gain through a brickwall limiter, so quiet mixes come up without clipping. Progress is written every 2 s from whichever player is active. In the page player, which autoplays muted without a user gesture, the app unmutes once playback is running. When an episode ends the app loads the next one from TMDB's episode list.
 
 Boxes without a hardware HEVC decoder are reported to the page as HEVC-incapable so the player serves H.264. Every `<video>` gets a data-URI poster because the WebView's default poster fails CORS on crossorigin players and fires a spurious error.
 
