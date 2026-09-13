@@ -164,24 +164,31 @@ object Telegram {
         return l.downloadOffset <= offset && offset + count <= l.downloadOffset + l.downloadedPrefixSize
     }
 
-    private val activeOffset = ConcurrentHashMap<Int, Long>()
+    private val activeStart = ConcurrentHashMap<Int, Long>()
 
     /** Blocks until [offset, offset+count) of the file is on disk, starting or moving the download as needed. */
+    /**
+     * Keeps a sliding download window ahead of the read position. The request is re-issued from the
+     * current offset once reads pass the middle of the window, so TDLib never races ahead to the end
+     * of a multi-gigabyte part while the player still needs its beginning.
+     */
     fun ensureDownloaded(fileId: Int, offset: Long, count: Long, timeoutMs: Long = 30_000) {
         if (covered(files[fileId], offset, count)) return
         val f = files[fileId]
-        val active = activeOffset[fileId]
-        val prefixEnd = (f?.local?.downloadOffset ?: 0L) + (f?.local?.downloadedPrefixSize ?: 0L)
-        val restart = active == null || offset < active || (f?.local?.isDownloadingActive != true) || offset > prefixEnd + WINDOW
-        if (restart) {
-            activeOffset[fileId] = offset
-            client?.send(TdApi.DownloadFile(fileId, 32, offset, 0, false)) { r -> if (r is TdApi.File) { files[r.id] = r; synchronized(fileLock) { fileLock.notifyAll() } } }
+        val start = activeStart[fileId]
+        val stale = start == null || offset < start || offset + count > start + WINDOW / 2 || f?.local?.isDownloadingActive != true
+        if (stale) {
+            activeStart[fileId] = offset
+            client?.send(TdApi.DownloadFile(fileId, 32, offset, WINDOW, false)) { r -> if (r is TdApi.File) { files[r.id] = r; synchronized(fileLock) { fileLock.notifyAll() } } }
         }
         val deadline = System.currentTimeMillis() + timeoutMs
         synchronized(fileLock) {
             while (!covered(files[fileId], offset, count)) {
                 val left = deadline - System.currentTimeMillis()
-                if (left <= 0) throw IOException("download timeout for file $fileId at $offset")
+                if (left <= 0) {
+                    val l = files[fileId]?.local
+                    throw IOException("download timeout for file $fileId at $offset (offset=${l?.downloadOffset} prefix=${l?.downloadedPrefixSize} active=${l?.isDownloadingActive})")
+                }
                 fileLock.wait(minOf(left, 500L))
             }
         }
@@ -198,11 +205,11 @@ object Telegram {
         sendBlocking(TdApi.ReadFilePart(fileId, offset, count), 15_000).data
 
     fun cancelDownload(fileId: Int) {
-        activeOffset.remove(fileId)
+        activeStart.remove(fileId)
         client?.send(TdApi.CancelDownloadFile(fileId, false), null)
     }
 
     private fun log(what: String, t: Throwable) { if (BuildConfig.DEBUG) Log.d("FloxTg", what, t) }
 
-    private const val WINDOW = 16L * 1024 * 1024
+    private const val WINDOW = 64L * 1024 * 1024
 }

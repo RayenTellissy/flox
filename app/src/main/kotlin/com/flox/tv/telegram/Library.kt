@@ -57,7 +57,8 @@ object Library {
         }
         val index = HashMap<Key, Entry>()
         for ((key, list) in parts) {
-            val sorted = list.sortedBy { it.first.index }
+            val latest = list.groupBy { it.first.index }.values.map { same -> same.maxBy { it.first.messageId } }
+            val sorted = latest.sortedBy { it.first.index }
             val expected = sorted.first().second.parts
             if (sorted.size < expected) continue
             val first = sorted.first()
