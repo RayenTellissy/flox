@@ -37,6 +37,14 @@
             android:visibility="gone" />
 
         <include
+            android:id="@+id/row_library"
+            layout="@layout/view_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_32"
+            android:visibility="gone" />
+
+        <include
             android:id="@+id/row_movies"
             layout="@layout/view_row"
             android:layout_width="match_parent"

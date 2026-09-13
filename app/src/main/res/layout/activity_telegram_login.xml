@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/canvas"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="@dimen/screen_padding">
+
+    <ImageView
+        android:id="@+id/login_qr"
+        android:layout_width="@dimen/qr_size"
+        android:layout_height="@dimen/qr_size"
+        android:layout_marginEnd="@dimen/space_48"
+        android:contentDescription="@string/telegram_scan"
+        android:visibility="invisible" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            style="@style/Text.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/telegram_eyebrow" />
+
+        <TextView
+            style="@style/Text.Heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_8"
+            android:text="@string/telegram_title" />
+
+        <TextView
+            android:id="@+id/login_state"
+            style="@style/Text.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_24"
+            android:text="@string/state_loading" />
+
+        <EditText
+            android:id="@+id/login_password"
+            style="@style/Text.Body"
+            android:layout_width="320dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_24"
+            android:background="@drawable/bg_input"
+            android:hint="@string/telegram_password_hint"
+            android:imeOptions="actionDone"
+            android:inputType="textPassword"
+            android:padding="@dimen/space_12"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/login_submit"
+            style="@style/Button.Filled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/space_16"
+            android:text="@string/telegram_submit"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

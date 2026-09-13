@@ -13,6 +13,7 @@ import com.flox.tv.data.ImageLoader
 import com.flox.tv.data.MediaDetails
 import com.flox.tv.data.MediaType
 import com.flox.tv.data.Tmdb
+import com.flox.tv.telegram.Library
 
 sealed class DetailsRow {
     data class Header(val details: MediaDetails, val buttonText: String, val resume: Boolean) : DetailsRow()
@@ -29,6 +30,7 @@ class DetailsAdapter(
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     val rows = ArrayList<DetailsRow>()
+    var mediaId = 0
     val seasonAdapter = SeasonAdapter(onSeason)
 
     override fun getItemCount(): Int = rows.size
@@ -45,7 +47,7 @@ class DetailsAdapter(
         return when (viewType) {
             TYPE_HEADER -> HeaderVH(inflater.inflate(R.layout.item_details_header, parent, false), onPlay)
             TYPE_SEASONS -> SeasonsVH(inflater.inflate(R.layout.item_seasons_row, parent, false))
-            TYPE_EPISODE -> EpisodeVH(inflater.inflate(R.layout.item_episode, parent, false), onEpisode)
+            TYPE_EPISODE -> EpisodeVH(inflater.inflate(R.layout.item_episode, parent, false), onEpisode) { mediaId }
             else -> StateVH(inflater.inflate(R.layout.item_state, parent, false))
         }
     }
@@ -77,6 +79,7 @@ class DetailsAdapter(
             if (d.year.isNotEmpty()) parts.add(d.year)
             parts.add(ctx.getString(if (d.type == MediaType.TV) R.string.type_tv else R.string.type_movie))
             d.runtimeMinutes?.let { parts.add("$it MIN") }
+            if (d.type == MediaType.MOVIE && Library.has(d.id, MediaType.MOVIE)) parts.add(ctx.getString(R.string.row_library))
             meta.text = parts.joinToString(" · ")
             title.text = d.title
             overview.text = d.overview
@@ -98,7 +101,7 @@ class DetailsAdapter(
         }
     }
 
-    class EpisodeVH(view: View, onEpisode: (Episode) -> Unit) : RecyclerView.ViewHolder(view) {
+    class EpisodeVH(view: View, onEpisode: (Episode) -> Unit, private val mediaId: () -> Int) : RecyclerView.ViewHolder(view) {
         private val still: ImageView = view.findViewById(R.id.still)
         private val meta: TextView = view.findViewById(R.id.meta)
         private val name: TextView = view.findViewById(R.id.name)
@@ -112,7 +115,10 @@ class DetailsAdapter(
         fun bind(e: Episode) {
             episode = e
             val label = String.format("E%02d", e.number)
-            meta.text = e.runtimeMinutes?.let { "$label · $it MIN" } ?: label
+            val parts = arrayListOf(label)
+            e.runtimeMinutes?.let { parts.add("$it MIN") }
+            if (Library.has(mediaId(), MediaType.TV, e.season, e.number)) parts.add(itemView.context.getString(R.string.row_library))
+            meta.text = parts.joinToString(" · ")
             name.text = e.name
             overview.text = e.overview
             ImageLoader.load(still, Tmdb.still(e.stillPath))

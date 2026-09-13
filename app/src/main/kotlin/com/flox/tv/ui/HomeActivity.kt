@@ -11,10 +11,14 @@ import android.widget.Button
 import android.widget.ScrollView
 import android.widget.TextView
 import com.flox.tv.R
+import com.flox.tv.data.MediaItem
 import com.flox.tv.data.MediaType
 import com.flox.tv.data.ProgressStore
 import com.flox.tv.data.Tmdb
 import com.flox.tv.player.PlayerIntent
+import com.flox.tv.telegram.Library
+import com.flox.tv.telegram.Telegram
+import com.flox.tv.telegram.TelegramLoginActivity
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -27,6 +31,8 @@ class HomeActivity : Activity() {
 
     private val scope = MainScope()
     private lateinit var continueRow: Row
+    private lateinit var libraryRow: Row
+    private val authListener: (Telegram.Auth) -> Unit = { a -> runOnUiThread { onAuth(a) } }
     private lateinit var moviesRow: Row
     private lateinit var tvRow: Row
 
@@ -39,6 +45,13 @@ class HomeActivity : Activity() {
         search.setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
 
         continueRow = Row(findViewById(R.id.row_continue), R.string.row_continue, R.drawable.ic_continue) { openContinue(it) }
+        libraryRow = Row(findViewById(R.id.row_library), R.string.row_library, R.drawable.ic_movie) { openDetails(it, libraryOnly = true) }
+        if (Telegram.configured) {
+            libraryRow.root.visibility = View.VISIBLE
+            libraryRow.onStateClick { startActivity(Intent(this, TelegramLoginActivity::class.java)) }
+            Telegram.start(this)
+            Telegram.addAuthListener(authListener)
+        }
         moviesRow = Row(findViewById(R.id.row_movies), R.string.row_trending_movies, R.drawable.ic_movie) { openDetails(it) }
         tvRow = Row(findViewById(R.id.row_tv), R.string.row_trending_tv, R.drawable.ic_tv) { openDetails(it) }
 
@@ -57,8 +70,30 @@ class HomeActivity : Activity() {
     }
 
     override fun onDestroy() {
+        Telegram.removeAuthListener(authListener)
         scope.cancel()
         super.onDestroy()
+    }
+
+    private fun onAuth(a: Telegram.Auth) {
+        when (a) {
+            Telegram.Auth.Ready -> loadLibrary()
+            Telegram.Auth.Loading -> libraryRow.loading()
+            else -> libraryRow.prompt(R.string.state_connect_telegram)
+        }
+    }
+
+    private fun loadLibrary() {
+        libraryRow.loading()
+        scope.launch {
+            val ok = runCatching { Library.refresh() }.getOrDefault(false)
+            if (!ok) { libraryRow.error(); return@launch }
+            val titles = Library.entries.keys.map { it.tmdb to it.type }.distinct()
+            val items = titles.mapNotNull { (id, type) ->
+                Tmdb.details(type, id).getOrNull()?.let { MediaItem(it.id, it.type, it.title, it.year, it.posterPath, it.overview) }
+            }
+            libraryRow.show(items.map { CardItem.Media(it) }, R.string.state_library_empty)
+        }
     }
 
     private fun loadTrending(row: Row, type: MediaType) {
@@ -80,11 +115,12 @@ class HomeActivity : Activity() {
         )
     }
 
-    private fun openDetails(card: CardItem) {
+    private fun openDetails(card: CardItem, libraryOnly: Boolean = false) {
         startActivity(
             Intent(this, DetailsActivity::class.java)
                 .putExtra(DetailsActivity.EXTRA_ID, card.id)
                 .putExtra(DetailsActivity.EXTRA_TYPE, card.type.tmdb)
+                .putExtra(DetailsActivity.EXTRA_LIBRARY, libraryOnly)
         )
     }
 
@@ -102,11 +138,29 @@ class HomeActivity : Activity() {
             list.adapter = adapter
         }
 
-        fun loading() = StateStamp.show(state, R.string.state_loading)
+        fun loading() {
+            state.isFocusable = false
+            StateStamp.show(state, R.string.state_loading)
+        }
 
-        fun show(items: List<CardItem>) {
+        fun onStateClick(action: () -> Unit) {
+            state.background = root.context.getDrawable(R.drawable.bg_button_ghost)
+            val pad = root.resources.getDimensionPixelSize(R.dimen.space_12)
+            state.setPadding(pad * 2, pad, pad * 2, pad)
+            state.setOnClickListener { action() }
+        }
+
+        /** A focusable stamp that invites an action, such as connecting an account. */
+        fun prompt(textRes: Int) {
+            adapter.submit(emptyList())
+            state.isFocusable = true
+            StateStamp.show(state, textRes)
+        }
+
+        fun show(items: List<CardItem>, emptyRes: Int = R.string.state_empty) {
             adapter.submit(items)
-            if (items.isEmpty()) StateStamp.show(state, R.string.state_empty) else StateStamp.hide(state)
+            state.isFocusable = false
+            if (items.isEmpty()) StateStamp.show(state, emptyRes) else StateStamp.hide(state)
         }
 
         fun error() {

@@ -8,6 +8,7 @@ import com.flox.tv.R
 import com.flox.tv.data.Episode
 import com.flox.tv.data.MediaDetails
 import com.flox.tv.data.MediaType
+import com.flox.tv.telegram.Library
 import com.flox.tv.data.Progress
 import com.flox.tv.data.ProgressStore
 import com.flox.tv.data.Tmdb
@@ -28,18 +29,22 @@ class DetailsActivity : Activity() {
     private var details: MediaDetails? = null
     private var progress: Progress? = null
     private var selectedSeason = 1
+    // Opened from the library row: only uploaded seasons and episodes are listed
+    private var libraryOnly = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_details)
         mediaId = intent.getIntExtra(EXTRA_ID, 0)
         type = MediaType.from(intent.getStringExtra(EXTRA_TYPE))
+        libraryOnly = intent.getBooleanExtra(EXTRA_LIBRARY, false)
         progress = ProgressStore.get(this, type, mediaId)
 
         list = findViewById(R.id.list)
         list.layoutManager = LinearLayoutManager(this)
         list.setHasFixedSize(true)
         adapter = DetailsAdapter(::play, ::selectSeason, ::playEpisode)
+        adapter.mediaId = mediaId
         list.adapter = adapter
 
         adapter.rows.add(DetailsRow.State(R.string.state_loading))
@@ -53,7 +58,7 @@ class DetailsActivity : Activity() {
         val d = details ?: return
         if (adapter.rows.isNotEmpty() && adapter.rows[0] is DetailsRow.Header) {
             adapter.rows[0] = DetailsRow.Header(d, buttonText(), hasProgress())
-            adapter.notifyItemChanged(0)
+            adapter.notifyDataSetChanged()
         }
     }
 
@@ -69,17 +74,18 @@ class DetailsActivity : Activity() {
                     details = d
                     adapter.rows.clear()
                     adapter.rows.add(DetailsRow.Header(d, buttonText(), hasProgress()))
-                    if (type == MediaType.TV && d.seasons.isNotEmpty()) {
+                    val seasons = if (libraryOnly) d.seasons.filter { it.number in Library.seasons(d.id) } else d.seasons
+                    if (type == MediaType.TV && seasons.isNotEmpty()) {
                         val fromProgress = progress?.lastSeason ?: -1
-                        selectedSeason = if (d.seasons.any { it.number == fromProgress }) fromProgress else d.seasons[0].number
-                        adapter.seasonAdapter.seasons = d.seasons
+                        selectedSeason = if (seasons.any { it.number == fromProgress }) fromProgress else seasons[0].number
+                        adapter.seasonAdapter.seasons = seasons
                         adapter.seasonAdapter.select(selectedSeason)
                         adapter.rows.add(DetailsRow.Seasons(adapter.seasonAdapter.indexOf(selectedSeason)))
                         adapter.rows.add(DetailsRow.State(R.string.state_loading))
                     }
                     adapter.notifyDataSetChanged()
                     list.doOnNextLayout { list.requestFocus() }
-                    if (type == MediaType.TV && d.seasons.isNotEmpty()) loadEpisodes(selectedSeason)
+                    if (type == MediaType.TV && seasons.isNotEmpty()) loadEpisodes(selectedSeason)
                 }
                 .onFailure {
                     adapter.rows.clear()
@@ -94,7 +100,8 @@ class DetailsActivity : Activity() {
         replaceTail(listOf(DetailsRow.State(R.string.state_loading)))
         episodesJob = scope.launch {
             Tmdb.episodes(mediaId, season)
-                .onSuccess { eps ->
+                .onSuccess { all ->
+                    val eps = if (libraryOnly) all.filter { Library.has(mediaId, MediaType.TV, it.season, it.number) } else all
                     if (eps.isEmpty()) replaceTail(listOf(DetailsRow.State(R.string.state_empty)))
                     else replaceTail(eps.map { DetailsRow.EpisodeRow(it) })
                 }
@@ -159,5 +166,6 @@ class DetailsActivity : Activity() {
     companion object {
         const val EXTRA_ID = "id"
         const val EXTRA_TYPE = "type"
+        const val EXTRA_LIBRARY = "library"
     }
 }

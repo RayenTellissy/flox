@@ -32,6 +32,7 @@
 
         <activity android:name=".ui.SearchActivity" android:exported="false" android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.DetailsActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".telegram.TelegramLoginActivity" android:exported="false" android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".player.PlayerActivity"

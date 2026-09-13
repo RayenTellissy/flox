@@ -11,6 +11,8 @@ val localProps = Properties().apply {
 }
 val tmdbKey: String = localProps.getProperty("TMDB_API_KEY") ?: System.getenv("TMDB_API_KEY") ?: ""
 val keystoreFile: String? = localProps.getProperty("KEYSTORE_FILE")
+val telegramApiId: String = localProps.getProperty("TELEGRAM_API_ID") ?: System.getenv("TELEGRAM_API_ID") ?: "0"
+val telegramApiHash: String = localProps.getProperty("TELEGRAM_API_HASH") ?: System.getenv("TELEGRAM_API_HASH") ?: ""
 
 android {
     namespace = "com.flox.tv"
@@ -23,6 +25,9 @@ android {
         versionCode = 8
         versionName = "1.5.0"
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
+        buildConfigField("int", "TELEGRAM_API_ID", telegramApiId)
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         resourceConfigurations += listOf("en")
     }
 
@@ -77,4 +82,5 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("com.google.zxing:core:3.5.3")
 }

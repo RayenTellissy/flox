@@ -25,4 +25,5 @@
     <dimen name="still_height">126dp</dimen>
     <dimen name="detail_poster_width">280dp</dimen>
     <dimen name="detail_poster_height">420dp</dimen>
+    <dimen name="qr_size">280dp</dimen>
 </resources>
