@@ -9,6 +9,7 @@
     <string name="state_loading">LOADING</string>
     <string name="state_empty">NO RESULTS</string>
     <string name="state_error">REQUEST FAILED</string>
+    <string name="state_library_empty">NOTHING UPLOADED YET</string>
     <string name="state_playback_failed">PLAYBACK FAILED</string>
     <string name="search">SEARCH</string>
     <string name="search_hint">Title</string>

@@ -92,7 +92,7 @@ class HomeActivity : Activity() {
             val items = titles.mapNotNull { (id, type) ->
                 Tmdb.details(type, id).getOrNull()?.let { MediaItem(it.id, it.type, it.title, it.year, it.posterPath, it.overview) }
             }
-            libraryRow.show(items.map { CardItem.Media(it) })
+            libraryRow.show(items.map { CardItem.Media(it) }, R.string.state_library_empty)
         }
     }
 
@@ -156,9 +156,10 @@ class HomeActivity : Activity() {
             StateStamp.show(state, textRes)
         }
 
-        fun show(items: List<CardItem>) {
+        fun show(items: List<CardItem>, emptyRes: Int = R.string.state_empty) {
             adapter.submit(items)
-            if (items.isEmpty()) StateStamp.show(state, R.string.state_empty) else StateStamp.hide(state)
+            state.isFocusable = false
+            if (items.isEmpty()) StateStamp.show(state, emptyRes) else StateStamp.hide(state)
         }
 
         fun error() {

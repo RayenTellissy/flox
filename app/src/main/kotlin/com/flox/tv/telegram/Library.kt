@@ -31,7 +31,12 @@ object Library {
 
     suspend fun refresh(chatTitle: String = DEFAULT_CHAT): Boolean {
         if (!Telegram.ready) return false
-        val chat = Telegram.chatByTitle(chatTitle) ?: return false
+        val chat = Telegram.chatByTitle(chatTitle)
+        if (chat == null) {
+            chatId = 0L
+            entries = emptyMap()
+            return true
+        }
         chatId = chat.id
         val messages = Telegram.documents(chat.id)
         val parts = HashMap<Key, MutableList<Pair<Part, Caption>>>()
