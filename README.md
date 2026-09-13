@@ -14,6 +14,8 @@ Episodes and movies uploaded to a private Telegram channel play natively without
 
 Movies omit `s` and `e`. Files over 2 GB are split into numbered parts and stitched back by byte offset at playback. An English `.srt` posted as a reply to part 1 becomes the subtitle track. The Mac companion app fills the channel; the TV app only reads it.
 
+The same episode can be uploaded in several prints; `quality` plus `codec` tells them apart (`2160p DV hevc`, `1080p av1`). The player starts with the quality last picked when that print exists, else the highest, and shows a quality button in the overlay when there is more than one. Switching restarts the file at the same position and remembers the choice.
+
 Opening a title from the `LIBRARY` row lists only the seasons and episodes that were uploaded; search and trending show everything with the stamp. Files split into parts stream through a sliding 64 MB download window, so playback and seeking start without fetching the whole file.
 
 Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `local.properties`. Without them the library row stays hidden. On the TV, the `LIBRARY` row shows `CONNECT TELEGRAM`; it opens a QR code to scan from the Telegram app (Settings, Devices, Link Desktop Device). Uploaded episodes carry a `LIBRARY` stamp on the details screen and play from Telegram first, falling back to the page if the file fails.

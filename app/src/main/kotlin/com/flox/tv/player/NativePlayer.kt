@@ -139,7 +139,7 @@ class NativePlayer(
         } ?: emptyList()
         val k = entry.key
         val item = MediaItem.Builder()
-            .setUri("tg://library/${k.tmdb}/${k.type.tmdb}/${k.season}/${k.episode}")
+            .setUri("tg://library/${k.tmdb}/${k.type.tmdb}/${k.season}/${k.episode}/${Uri.encode(entry.label)}")
             .setSubtitleConfigurations(subtitles)
             .build()
         launch(TdDataSource.Factory(ctx, entry), item, startAt, allowSoftwareHevc = true)
@@ -148,10 +148,11 @@ class NativePlayer(
     private fun launch(factory: androidx.media3.datasource.DataSource.Factory, item: MediaItem, startAt: Int, allowSoftwareHevc: Boolean = false) {
         startAtSec = startAt
         startApplied = false
+        // page streams stay at 1080p; a library file plays at whatever it was uploaded in
         val selector = DefaultTrackSelector(ctx).apply {
             setParameters(
                 buildUponParameters()
-                    .setMaxVideoSize(1920, 1080)
+                    .apply { if (!allowSoftwareHevc) setMaxVideoSize(1920, 1080) }
                     .setPreferredTextLanguage(null)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             )

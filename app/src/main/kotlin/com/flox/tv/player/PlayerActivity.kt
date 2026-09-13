@@ -61,6 +61,7 @@ class PlayerActivity : Activity() {
     // a library file that failed to play falls back to the page for this episode
     private var libraryFailed = false
     private var playingLibrary = false
+    private var libraryEntry: Library.Entry? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,6 +139,8 @@ class PlayerActivity : Activity() {
         controls.onPlayPause = { native.togglePlay() }
         controls.onSeekBy = { s -> native.seekBy(s) }
         controls.onSubtitles = { cycleSubtitles() }
+        controls.onQuality = { cycleQuality() }
+        Library.preferredQuality = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_QUALITY, "").orEmpty()
         controls.onNext = { playNext() }
         controls.onBack = { finish() }
         webView.setBackgroundColor(0xFF000000.toInt())
@@ -179,6 +182,7 @@ class PlayerActivity : Activity() {
         val entry = if (libraryFailed || !Telegram.ready) null
             else Library.get(m.id, m.type, if (m.type == MediaType.TV) m.season else 0, if (m.type == MediaType.TV) m.episode else 0)
         playingLibrary = entry != null
+        libraryEntry = entry
         if (entry != null) {
             playLibrary(entry)
             return
@@ -226,7 +230,30 @@ class PlayerActivity : Activity() {
         webView.loadUrl("about:blank")
         controls.bind(native, bridge.meta)
         controls.setSubtitlesAvailable(native.hasSubtitles())
+        controls.setQualityAvailable(libraryEntry != null && libraryVariants().size > 1)
         nativeView.requestFocus()
+    }
+
+    private fun libraryVariants(): List<Library.Entry> {
+        val m = bridge.meta
+        return Library.variants(m.id, m.type, if (m.type == MediaType.TV) m.season else 0, if (m.type == MediaType.TV) m.episode else 0)
+    }
+
+    /** Restarts the library file at the next uploaded print, keeping the position, and remembers the choice. */
+    private fun cycleQuality() {
+        val current = libraryEntry ?: return
+        val all = libraryVariants()
+        if (all.size < 2) return
+        val next = all[(all.indexOfFirst { it.label == current.label } + 1) % all.size]
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_QUALITY, next.quality).apply()
+        Library.preferredQuality = next.quality
+        startAt = native.currentSeconds()
+        native.stop()
+        controls.hide()
+        nativeShown = false
+        libraryEntry = next
+        showHint(getString(R.string.player_quality_fmt, next.label.uppercase()))
+        playLibrary(next)
     }
 
     private fun refreshNext() {
@@ -506,6 +533,8 @@ class PlayerActivity : Activity() {
 
     private companion object {
         const val HINT_MS = 2500L
+        const val PREFS = "flox_player"
+        const val PREF_QUALITY = "quality"
         const val WATCHDOG_MS = 45_000L
         const val MIN_WEBVIEW_MAJOR = 89
     }

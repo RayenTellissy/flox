@@ -18,16 +18,29 @@ object Library {
         val subtitleFileId: Int?
     ) {
         val totalSize get() = parts.sumOf { it.size }
+        /** Print name shown to the user, e.g. "2160p DV hevc". */
+        val label get() = "$quality $codec".trim()
+        val height get() = quality.substringBefore('p').toIntOrNull() ?: 0
     }
 
-    @Volatile var entries: Map<Key, Entry> = emptyMap()
+    /** Every print uploaded per title or episode; the same episode can exist in several qualities. */
+    @Volatile var entries: Map<Key, List<Entry>> = emptyMap()
         private set
     @Volatile var chatId: Long = 0L
         private set
+    /** Quality the user last switched to in the player; wins when that print exists. */
+    @Volatile var preferredQuality: String = ""
 
-    fun get(tmdb: Int, type: MediaType, season: Int = 0, episode: Int = 0) = entries[Key(tmdb, type, season, episode)]
+    fun variants(tmdb: Int, type: MediaType, season: Int = 0, episode: Int = 0): List<Entry> =
+        entries[Key(tmdb, type, season, episode)].orEmpty()
 
-    fun has(tmdb: Int, type: MediaType, season: Int = 0, episode: Int = 0) = get(tmdb, type, season, episode) != null
+    /** The print to play by default: the preferred quality when uploaded, else the highest resolution. */
+    fun get(tmdb: Int, type: MediaType, season: Int = 0, episode: Int = 0): Entry? {
+        val all = variants(tmdb, type, season, episode)
+        return all.firstOrNull { it.quality == preferredQuality } ?: all.firstOrNull()
+    }
+
+    fun has(tmdb: Int, type: MediaType, season: Int = 0, episode: Int = 0) = variants(tmdb, type, season, episode).isNotEmpty()
 
     /** Season numbers of a show that have at least one uploaded episode. */
     fun seasons(tmdb: Int): Set<Int> = entries.keys.filter { it.tmdb == tmdb && it.type == MediaType.TV }.map { it.season }.toSet()
@@ -42,7 +55,7 @@ object Library {
         }
         chatId = chat.id
         val messages = Telegram.documents(chat.id)
-        val parts = HashMap<Key, MutableList<Pair<Part, Caption>>>()
+        val parts = HashMap<String, MutableList<Pair<Part, Caption>>>()
         val subtitles = HashMap<Long, Int>()
         for (m in messages) {
             val content = m.content as? TdApi.MessageDocument ?: continue
@@ -56,18 +69,20 @@ object Library {
                 continue
             }
             val part = Part(caption.part, doc.document.id, doc.document.size, m.id)
-            parts.getOrPut(caption.key) { ArrayList() }.add(part to caption)
+            parts.getOrPut("${caption.key} ${caption.quality} ${caption.codec}") { ArrayList() }.add(part to caption)
         }
-        val index = HashMap<Key, Entry>()
-        for ((key, list) in parts) {
+        val index = HashMap<Key, MutableList<Entry>>()
+        for (list in parts.values) {
             val latest = list.groupBy { it.first.index }.values.map { same -> same.maxBy { it.first.messageId } }
             val sorted = latest.sortedBy { it.first.index }
             val expected = sorted.first().second.parts
             if (sorted.size < expected) continue
             val first = sorted.first()
-            index[key] = Entry(key, first.second.quality, first.second.codec, sorted.map { it.first }, subtitles[first.first.messageId])
+            val key = first.second.key
+            index.getOrPut(key) { ArrayList() }
+                .add(Entry(key, first.second.quality, first.second.codec, sorted.map { it.first }, subtitles[first.first.messageId]))
         }
-        entries = index
+        entries = index.mapValues { (_, list) -> list.sortedWith(compareByDescending<Entry> { it.height }.thenBy { it.label }) }
         return true
     }
 

@@ -19,6 +19,7 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     var onPlayPause: (() -> Unit)? = null
     var onSeekBy: ((Int) -> Unit)? = null
     var onSubtitles: (() -> Unit)? = null
+    var onQuality: (() -> Unit)? = null
     var onNext: (() -> Unit)? = null
     var onBack: (() -> Unit)? = null
 
@@ -32,6 +33,7 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     private val duration: TextView
     private val playPause: ImageButton
     private val subtitles: ImageButton
+    private val quality: ImageButton
     private val next: ImageButton
 
     private val hideLater = Runnable { hide() }
@@ -51,12 +53,14 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
         duration = findViewById(R.id.controls_duration)
         playPause = findViewById(R.id.controls_play_pause)
         subtitles = findViewById(R.id.controls_subtitles)
+        quality = findViewById(R.id.controls_quality)
         next = findViewById(R.id.controls_next)
         seek.onScrub = { s -> onSeekBy?.invoke(s); touch() }
         playPause.setOnClickListener { onPlayPause?.invoke(); touch() }
         findViewById<ImageButton>(R.id.controls_rewind).setOnClickListener { onSeekBy?.invoke(-10); touch() }
         findViewById<ImageButton>(R.id.controls_forward).setOnClickListener { onSeekBy?.invoke(10); touch() }
         subtitles.setOnClickListener { onSubtitles?.invoke(); touch() }
+        quality.setOnClickListener { onQuality?.invoke(); touch() }
         next.setOnClickListener { onNext?.invoke() }
         findViewById<ImageButton>(R.id.controls_back).setOnClickListener { onBack?.invoke() }
         visibility = GONE
@@ -73,6 +77,11 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
 
     fun setSubtitlesAvailable(available: Boolean) {
         subtitles.visibility = if (available) VISIBLE else GONE
+    }
+
+    /** Shown only when the library holds more than one print of what is playing. */
+    fun setQualityAvailable(available: Boolean) {
+        quality.visibility = if (available) VISIBLE else GONE
     }
 
     fun setNextAvailable(available: Boolean) {

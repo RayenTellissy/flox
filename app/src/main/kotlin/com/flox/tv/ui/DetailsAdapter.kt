@@ -79,7 +79,7 @@ class DetailsAdapter(
             if (d.year.isNotEmpty()) parts.add(d.year)
             parts.add(ctx.getString(if (d.type == MediaType.TV) R.string.type_tv else R.string.type_movie))
             d.runtimeMinutes?.let { parts.add("$it MIN") }
-            if (d.type == MediaType.MOVIE && Library.has(d.id, MediaType.MOVIE)) parts.add(ctx.getString(R.string.row_library))
+            if (d.type == MediaType.MOVIE) libraryStamp(ctx, Library.variants(d.id, MediaType.MOVIE))?.let(parts::add)
             meta.text = parts.joinToString(" · ")
             title.text = d.title
             overview.text = d.overview
@@ -117,7 +117,7 @@ class DetailsAdapter(
             val label = String.format("E%02d", e.number)
             val parts = arrayListOf(label)
             e.runtimeMinutes?.let { parts.add("$it MIN") }
-            if (Library.has(mediaId(), MediaType.TV, e.season, e.number)) parts.add(itemView.context.getString(R.string.row_library))
+            libraryStamp(itemView.context, Library.variants(mediaId(), MediaType.TV, e.season, e.number))?.let(parts::add)
             meta.text = parts.joinToString(" · ")
             name.text = e.name
             overview.text = e.overview
@@ -134,5 +134,11 @@ class DetailsAdapter(
         const val TYPE_SEASONS = 1
         const val TYPE_EPISODE = 2
         const val TYPE_STATE = 3
+
+        /** "LIBRARY · 1080P, 2160P DV" or null when nothing is uploaded. */
+        fun libraryStamp(ctx: android.content.Context, variants: List<Library.Entry>): String? {
+            if (variants.isEmpty()) return null
+            return ctx.getString(R.string.row_library) + " · " + variants.joinToString(", ") { it.quality.uppercase() }
+        }
     }
 }
