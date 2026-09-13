@@ -1,5 +1,6 @@
 package com.flox.tv.telegram
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.flox.tv.BuildConfig
@@ -8,13 +9,38 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.TransferListener
 import java.io.IOException
 
 /** Reads a library entry as one contiguous byte stream, stitching split parts by offset. */
 @UnstableApi
 class TdDataSource(private val entry: Library.Entry) : BaseDataSource(true) {
-    class Factory(private val entry: Library.Entry) : DataSource.Factory {
-        override fun createDataSource(): DataSource = TdDataSource(entry)
+    /** Routes tg:// to Telegram and everything else (side-loaded subtitle files) to the default source. */
+    class Factory(private val ctx: Context, private val entry: Library.Entry) : DataSource.Factory {
+        override fun createDataSource(): DataSource = Routing(ctx, entry)
+    }
+
+    private class Routing(ctx: Context, entry: Library.Entry) : DataSource {
+        private val td = TdDataSource(entry)
+        private val local = DefaultDataSource.Factory(ctx).createDataSource()
+        private var active: DataSource? = null
+
+        override fun addTransferListener(transferListener: TransferListener) {
+            td.addTransferListener(transferListener)
+            local.addTransferListener(transferListener)
+        }
+
+        override fun open(dataSpec: DataSpec): Long {
+            val src = if (dataSpec.uri.scheme == "tg") td else local
+            active = src
+            return src.open(dataSpec)
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int = active?.read(buffer, offset, length) ?: C.RESULT_END_OF_INPUT
+        override fun getUri(): Uri? = active?.uri
+        override fun getResponseHeaders(): Map<String, List<String>> = active?.responseHeaders ?: emptyMap()
+        override fun close() { active?.close(); active = null }
     }
 
     private var uri: Uri? = null

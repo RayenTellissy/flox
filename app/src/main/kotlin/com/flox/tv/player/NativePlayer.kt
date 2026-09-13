@@ -79,7 +79,7 @@ class NativePlayer(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            if (BuildConfig.DEBUG) Log.d("FloxNative", "error ${error.errorCodeName}: ${error.message}")
+            if (BuildConfig.DEBUG) Log.d("FloxNative", "error ${error.errorCodeName}: ${error.message} cause=${error.cause}")
             onFailed(error.errorCodeName)
         }
     }
@@ -138,10 +138,10 @@ class NativePlayer(
             .setUri("tg://library/${k.tmdb}/${k.type.tmdb}/${k.season}/${k.episode}")
             .setSubtitleConfigurations(subtitles)
             .build()
-        launch(TdDataSource.Factory(entry), item, startAt)
+        launch(TdDataSource.Factory(ctx, entry), item, startAt, allowSoftwareHevc = true)
     }
 
-    private fun launch(factory: androidx.media3.datasource.DataSource.Factory, item: MediaItem, startAt: Int) {
+    private fun launch(factory: androidx.media3.datasource.DataSource.Factory, item: MediaItem, startAt: Int, allowSoftwareHevc: Boolean = false) {
         startAtSec = startAt
         startApplied = false
         val selector = DefaultTrackSelector(ctx).apply {
@@ -152,8 +152,9 @@ class NativePlayer(
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             )
         }
-        // no hardware HEVC decoder: hide HEVC entirely so an HEVC-only source fails fast and falls back to the page
-        val noHevc = !Codecs.hasHevcDecoder()
+        // no hardware HEVC decoder: hide HEVC so an HEVC-only page source falls back to the page player.
+        // Library files have no other quality, so any decoder is better than nothing there.
+        val noHevc = !allowSoftwareHevc && !Codecs.hasHevcDecoder()
         val renderers = DefaultRenderersFactory(ctx)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             .setMediaCodecSelector { mime, secure, tunneling ->
