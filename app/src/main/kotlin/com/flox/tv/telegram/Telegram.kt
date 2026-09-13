@@ -87,7 +87,10 @@ object Telegram {
             }
             is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> setAuth(Auth.Qr(state.link))
             is TdApi.AuthorizationStateWaitPassword -> setAuth(Auth.Password)
-            is TdApi.AuthorizationStateReady -> setAuth(Auth.Ready)
+            is TdApi.AuthorizationStateReady -> {
+                setAuth(Auth.Ready)
+                sweepStorage()
+            }
             is TdApi.AuthorizationStateClosed -> {
                 client = null
                 chatsLoaded = false
@@ -204,6 +207,24 @@ object Telegram {
     fun readFilePart(fileId: Int, offset: Long, count: Long): ByteArray =
         sendBlocking(TdApi.ReadFilePart(fileId, offset, count), 15_000).data
 
+    /** Warms the start of a file at low priority so a part switch does not stall the player. */
+    fun prefetch(fileId: Int, count: Long) {
+        if (covered(files[fileId], 0, count)) return
+        client?.send(TdApi.DownloadFile(fileId, 16, 0, count, false)) { r -> if (r is TdApi.File) files[r.id] = r }
+    }
+
+    /** Drops the cached bytes of a file once the player is done with it. */
+    fun deleteLocal(fileId: Int) {
+        activeStart.remove(fileId)
+        files.remove(fileId)
+        client?.send(TdApi.DeleteFile(fileId), null)
+    }
+
+    /** Clears document caches left behind when playback did not end cleanly. */
+    private fun sweepStorage() {
+        client?.send(TdApi.OptimizeStorage(0, 0, 0, 0, arrayOf(TdApi.FileTypeDocument()), LongArray(0), LongArray(0), false, 0), null)
+    }
+
     fun cancelDownload(fileId: Int) {
         activeStart.remove(fileId)
         client?.send(TdApi.CancelDownloadFile(fileId, false), null)
@@ -211,5 +232,5 @@ object Telegram {
 
     private fun log(what: String, t: Throwable) { if (BuildConfig.DEBUG) Log.d("FloxTg", what, t) }
 
-    private const val WINDOW = 64L * 1024 * 1024
+    private const val WINDOW = 256L * 1024 * 1024
 }

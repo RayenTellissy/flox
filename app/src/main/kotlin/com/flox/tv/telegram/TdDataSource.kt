@@ -66,6 +66,7 @@ class TdDataSource(private val entry: Library.Entry) : BaseDataSource(true) {
     private var buf = ByteArray(0)
     private var bufStart = 0L
     private var activePart = -1
+    private var prefetched = false
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
@@ -89,6 +90,11 @@ class TdDataSource(private val entry: Library.Entry) : BaseDataSource(true) {
         if (activePart != idx) {
             if (activePart >= 0) Telegram.cancelDownload(entry.parts[activePart].fileId)
             activePart = idx
+            prefetched = false
+        }
+        if (!prefetched && idx + 1 < entry.parts.size && part.size - local <= PREFETCH_AT) {
+            Telegram.prefetch(entry.parts[idx + 1].fileId, PREFETCH)
+            prefetched = true
         }
         val t0 = System.currentTimeMillis()
         Telegram.ensureDownloaded(part.fileId, local, count)
@@ -113,5 +119,7 @@ class TdDataSource(private val entry: Library.Entry) : BaseDataSource(true) {
 
     private companion object {
         const val CHUNK = 512L * 1024
+        const val PREFETCH_AT = 512L * 1024 * 1024
+        const val PREFETCH = 64L * 1024 * 1024
     }
 }

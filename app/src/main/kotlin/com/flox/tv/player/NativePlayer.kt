@@ -13,6 +13,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -22,6 +23,7 @@ import androidx.media3.ui.PlayerView
 import com.flox.tv.BuildConfig
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.TdDataSource
+import com.flox.tv.telegram.Telegram
 
 /**
  * Plays the manifest the page resolved, with the page's request headers, in ExoPlayer.
@@ -41,6 +43,7 @@ class NativePlayer(
     private val loudness = Loudness()
     private var startAtSec = 0
     private var startApplied = false
+    private var libraryEntry: Library.Entry? = null
 
     val active get() = player != null
     /** Fires when the loaded tracks change, so the overlay can show or hide the subtitles button. */
@@ -137,6 +140,7 @@ class NativePlayer(
                     .build()
             )
         } ?: emptyList()
+        libraryEntry = entry
         val k = entry.key
         val item = MediaItem.Builder()
             .setUri("tg://library/${k.tmdb}/${k.type.tmdb}/${k.season}/${k.episode}/${Uri.encode(entry.label)}")
@@ -168,9 +172,15 @@ class NativePlayer(
                 if (BuildConfig.DEBUG && infos.any { !it.name.contains("goldfish") }) infos = infos.filter { !it.name.contains("goldfish") }
                 if (noHevc && mime.equals(MimeTypes.VIDEO_H265, true)) emptyList() else infos
             }
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(30_000, 90_000, 2_500, 5_000)
+            .setTargetBufferBytes(48 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false)
+            .build()
         val p = ExoPlayer.Builder(ctx, renderers)
             .setMediaSourceFactory(DefaultMediaSourceFactory(factory))
             .setTrackSelector(selector)
+            .setLoadControl(loadControl)
             .build()
         p.addListener(listener)
         p.setMediaItem(item)
@@ -234,6 +244,8 @@ class NativePlayer(
         loudness.release()
         p.removeListener(listener)
         p.release()
+        libraryEntry?.parts?.forEach { Telegram.deleteLocal(it.fileId) }
+        libraryEntry = null
     }
 
     private companion object {
