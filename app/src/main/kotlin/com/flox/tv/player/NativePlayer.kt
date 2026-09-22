@@ -5,7 +5,9 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -13,9 +15,11 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
@@ -88,6 +92,24 @@ class NativePlayer(
         override fun onPlayerError(error: PlaybackException) {
             if (BuildConfig.DEBUG) Log.d("FloxNative", "error ${error.errorCodeName}: ${error.message} cause=${error.cause}")
             onFailed(error.errorCodeName)
+        }
+    }
+
+    private val analytics = object : AnalyticsListener {
+        override fun onAudioInputFormatChanged(eventTime: AnalyticsListener.EventTime, format: Format, evaluation: DecoderReuseEvaluation?) {
+            if (BuildConfig.DEBUG) Log.d("FloxAudio", "audio ${format.sampleMimeType} ${format.channelCount}ch ${format.sampleRate}Hz")
+        }
+
+        override fun onAudioDecoderInitialized(eventTime: AnalyticsListener.EventTime, name: String, initializedAt: Long, initDuration: Long) {
+            if (BuildConfig.DEBUG) Log.d("FloxAudio", "audio decoder $name")
+        }
+
+        override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, error: Exception) {
+            if (BuildConfig.DEBUG) Log.d("FloxAudio", "audio sink error", error)
+        }
+
+        override fun onAudioCodecError(eventTime: AnalyticsListener.EventTime, error: Exception) {
+            if (BuildConfig.DEBUG) Log.d("FloxAudio", "audio codec error", error)
         }
     }
 
@@ -164,8 +186,9 @@ class NativePlayer(
         // no hardware HEVC decoder: hide HEVC so an HEVC-only page source falls back to the page player.
         // Library files have no other quality, so any decoder is better than nothing there.
         val noHevc = !allowSoftwareHevc && !Codecs.hasHevcDecoder()
-        val renderers = DefaultRenderersFactory(ctx)
+        val renderers = FloxRenderersFactory(ctx)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            .setEnableDecoderFallback(true)
             .setMediaCodecSelector { mime, secure, tunneling ->
                 var infos = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
                 // the emulator's goldfish decoders render with swapped chroma; debug builds prefer the software ones
@@ -182,7 +205,12 @@ class NativePlayer(
             .setTrackSelector(selector)
             .setLoadControl(loadControl)
             .build()
+        p.setAudioAttributes(
+            AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
+            true
+        )
         p.addListener(listener)
+        p.addAnalyticsListener(analytics)
         p.setMediaItem(item)
         p.playWhenReady = true
         p.prepare()
@@ -207,6 +235,11 @@ class NativePlayer(
         val duration = p.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
         p.seekTo((p.currentPosition + seconds * 1000L).coerceIn(0L, duration))
     }
+
+    /** Software gain for boxes whose device volume is fixed; 0..1. */
+    var volume: Float
+        get() = player?.volume ?: 1f
+        set(value) { player?.volume = value.coerceIn(0f, 1f) }
 
     fun currentSeconds(): Int = ((player?.currentPosition ?: 0L) / 1000L).toInt()
     fun positionMs(): Long = player?.currentPosition ?: 0L
@@ -243,6 +276,7 @@ class NativePlayer(
         view.player = null
         loudness.release()
         p.removeListener(listener)
+        p.removeAnalyticsListener(analytics)
         p.release()
         libraryEntry?.parts?.forEach { Telegram.deleteLocal(it.fileId) }
         libraryEntry = null

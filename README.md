@@ -18,6 +18,8 @@ The same episode can be uploaded in several prints; `quality` plus `codec` tells
 
 Opening a title from the `LIBRARY` row lists only the seasons and episodes that were uploaded; search and trending show everything with the stamp. Files split into parts stream through a sliding 64 MB download window, so playback and seeking start without fetching the whole file.
 
+Audio is always decoded to PCM rather than passed through as a Dolby bitstream, since many TVs report passthrough support for an output that then plays silence. Codecs the box has no decoder for (E-AC3, DTS, TrueHD) are decoded by bundled FFmpeg. The volume buttons move the device volume, or the player's own gain on boxes with a fixed volume.
+
 Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `local.properties`. Without them the library row stays hidden. On the TV, the `LIBRARY` row shows `CONNECT TELEGRAM`; it opens a QR code to scan from the Telegram app (Settings, Devices, Link Desktop Device). Uploaded episodes carry a `LIBRARY` stamp on the details screen and play from Telegram first, falling back to the page if the file fails.
 
 TDLib is bundled as `app/src/main/jniLibs/<abi>/libtdjni.so` plus the generated `org.drinkless.tdlib` Java classes, built from tdlib/td commit `d1085f9` with `example/android/build-tdlib.sh` for `arm64-v8a` and `armeabi-v7a`. Rebuild both together when upgrading.
@@ -43,10 +45,11 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 | Key | Action |
 |-----|--------|
-| CENTER / PLAY-PAUSE | Play or pause |
+| CENTER | Play or pause and show the player overlay |
+| PLAY-PAUSE | Play or pause |
 | LEFT / RIGHT | Seek 10 s, growing to 30 s and 60 s while held |
 | REWIND / FAST-FORWARD | Seek 30 s |
-| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s |
+| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, volume down / up, subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s |
 | MENU | Cycle subtitles: off, then each track, device language first |
 | UP / DOWN or long CENTER | Page player only: enter navigation mode over its buttons |
 | MENU | Page player only: open its settings panel in navigation mode |

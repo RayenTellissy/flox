@@ -2,6 +2,7 @@ package com.flox.tv.player
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -138,6 +139,7 @@ class PlayerActivity : Activity() {
         native.onTracksChanged = { controls.setSubtitlesAvailable(native.hasSubtitles()) }
         controls.onPlayPause = { native.togglePlay() }
         controls.onSeekBy = { s -> native.seekBy(s) }
+        controls.onVolume = { up -> adjustVolume(up) }
         controls.onSubtitles = { cycleSubtitles() }
         controls.onQuality = { cycleQuality() }
         Library.preferredQuality = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_QUALITY, "").orEmpty()
@@ -438,7 +440,7 @@ class PlayerActivity : Activity() {
         }
         if (event.action != KeyEvent.ACTION_DOWN) return true
         when (code) {
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> native.togglePlay()
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { native.togglePlay(); controls.show() }
             KeyEvent.KEYCODE_DPAD_LEFT -> seekHidden(-PlayerControls.seekStep(event.repeatCount))
             KeyEvent.KEYCODE_DPAD_RIGHT -> seekHidden(PlayerControls.seekStep(event.repeatCount))
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> controls.show()
@@ -450,6 +452,18 @@ class PlayerActivity : Activity() {
     private fun seekHidden(seconds: Int) {
         native.seekBy(seconds)
         showHint(getString(R.string.player_seek_fmt, if (seconds < 0) "-" else "+", kotlin.math.abs(seconds)))
+    }
+
+    /** Device volume where the box allows it; otherwise the player's own gain, which can only attenuate. */
+    private fun adjustVolume(up: Boolean) {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (am.isVolumeFixed) {
+            native.volume += if (up) VOLUME_STEP else -VOLUME_STEP
+            showHint(getString(R.string.player_volume_pct_fmt, Math.round(native.volume * 100)))
+            return
+        }
+        am.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (up) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, 0)
+        showHint(getString(R.string.player_volume_fmt, am.getStreamVolume(AudioManager.STREAM_MUSIC), am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)))
     }
 
     private fun cycleSubtitles() {
@@ -533,6 +547,7 @@ class PlayerActivity : Activity() {
 
     private companion object {
         const val HINT_MS = 2500L
+        const val VOLUME_STEP = 0.1f
         const val PREFS = "flox_player"
         const val PREF_QUALITY = "quality"
         const val WATCHDOG_MS = 45_000L

@@ -18,6 +18,8 @@ import com.flox.tv.data.MediaType
 class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null) : FrameLayout(ctx, attrs) {
     var onPlayPause: (() -> Unit)? = null
     var onSeekBy: ((Int) -> Unit)? = null
+    /** True raises the volume, false lowers it. */
+    var onVolume: ((Boolean) -> Unit)? = null
     var onSubtitles: (() -> Unit)? = null
     var onQuality: (() -> Unit)? = null
     var onNext: (() -> Unit)? = null
@@ -59,6 +61,8 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
         playPause.setOnClickListener { onPlayPause?.invoke(); touch() }
         findViewById<ImageButton>(R.id.controls_rewind).setOnClickListener { onSeekBy?.invoke(-10); touch() }
         findViewById<ImageButton>(R.id.controls_forward).setOnClickListener { onSeekBy?.invoke(10); touch() }
+        findViewById<ImageButton>(R.id.controls_volume_down).setOnClickListener { onVolume?.invoke(false); touch() }
+        findViewById<ImageButton>(R.id.controls_volume_up).setOnClickListener { onVolume?.invoke(true); touch() }
         subtitles.setOnClickListener { onSubtitles?.invoke(); touch() }
         quality.setOnClickListener { onQuality?.invoke(); touch() }
         next.setOnClickListener { onNext?.invoke() }

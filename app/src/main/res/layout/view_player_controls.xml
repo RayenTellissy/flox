@@ -96,6 +96,21 @@
                 android:src="@drawable/ic_player_forward" />
 
             <ImageButton
+                android:id="@+id/controls_volume_down"
+                style="@style/PlayerIconButton"
+                android:layout_marginStart="@dimen/space_32"
+                android:contentDescription="@string/player_volume_down"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_volume_down" />
+
+            <ImageButton
+                android:id="@+id/controls_volume_up"
+                style="@style/PlayerIconButton"
+                android:contentDescription="@string/player_volume_up"
+                android:nextFocusUp="@id/controls_seek"
+                android:src="@drawable/ic_player_volume_up" />
+
+            <ImageButton
                 android:id="@+id/controls_subtitles"
                 style="@style/PlayerIconButton"
                 android:layout_marginStart="@dimen/space_32"
