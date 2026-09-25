@@ -20,7 +20,7 @@ Opening a title from the `LIBRARY` row lists only the seasons and episodes that 
 
 Audio is always decoded to PCM rather than passed through as a Dolby bitstream, since many TVs report passthrough support for an output that then plays silence. Codecs the box has no decoder for (E-AC3, DTS, TrueHD) are decoded by bundled FFmpeg. The volume buttons move the device volume, or the player's own gain on boxes with a fixed volume.
 
-The audio button lists every audio track VLC style, with language, name, codec and channel layout (`English · E-AC3 · 5.1`). The picked language carries over to the next episode for the rest of the session. BACK closes the list.
+The audio button lists every audio track VLC style, with language, name, codec and channel layout (`English · E-AC3 · 5.1`). The picked language is saved as the preferred audio language and chosen first from then on. BACK closes the list.
 
 Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `local.properties`. Without them the library row stays hidden. On the TV, the `LIBRARY` row shows `CONNECT TELEGRAM`; it opens a QR code to scan from the Telegram app (Settings, Devices, Link Desktop Device). Uploaded episodes carry a `LIBRARY` stamp on the details screen and play from Telegram first, falling back to the page if the file fails.
 
@@ -49,10 +49,10 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 |-----|--------|
 | CENTER | Play or pause and show the player overlay |
 | PLAY-PAUSE | Play or pause |
-| LEFT / RIGHT | Seek 10 s, growing to 30 s and 60 s while held |
-| REWIND / FAST-FORWARD | Seek 30 s |
-| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, volume down / up, audio track (when there is more than one), subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s |
-| MENU | Cycle subtitles: off, then each track, device language first |
+| LEFT / RIGHT | Seek one step (10 s by default, set in Settings), growing to 3 and 6 steps while held |
+| REWIND / FAST-FORWARD | Seek 3 steps (30 s by default) |
+| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, volume down / up, audio track (when there is more than one), subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s by default (set in Settings) |
+| MENU | Cycle subtitles: off, then each track, subtitle language from Settings (else device language) first |
 | UP / DOWN or long CENTER | Page player only: enter navigation mode over its buttons |
 | MENU | Page player only: open its settings panel in navigation mode |
 | long MENU | Reload player |
@@ -61,7 +61,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 Navigation mode uses the app's own focus logic (nearest button in the pressed direction, 2 px square ring), so it does not depend on the WebView's built-in spatial navigation.
 
-Native playback runs an 8 dB gain through a brickwall limiter, so quiet mixes come up without clipping. Progress is written every 2 s from whichever player is active. In the page player, which autoplays muted without a user gesture, the app unmutes once playback is running. When an episode ends the app loads the next one from TMDB's episode list.
+Native playback runs an 8 dB gain (adjustable or off in Settings) through a brickwall limiter, so quiet mixes come up without clipping. Progress is written every 2 s from whichever player is active. In the page player, which autoplays muted without a user gesture, the app unmutes once playback is running. When an episode ends the app loads the next one from TMDB's episode list, unless autoplay is turned off in Settings.
 
 Boxes without a hardware HEVC decoder are reported to the page as HEVC-incapable so the player serves H.264. Every `<video>` gets a data-URI poster because the WebView's default poster fails CORS on crossorigin players and fires a spurious error.
 

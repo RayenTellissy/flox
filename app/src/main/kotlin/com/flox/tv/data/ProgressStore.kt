@@ -6,14 +6,18 @@ import org.json.JSONObject
 
 /**
  * Local continue-watching store. Backed by SharedPreferences as one JSON array,
- * newest first, capped at MAX entries. Finished items (>=95%) are hidden from reads.
+ * newest first, capped at MAX entries. Items past the finished threshold in [Settings] are hidden from reads.
  */
 object ProgressStore {
     private const val PREFS = "flox_progress"
     private const val KEY = "items"
-    private const val MAX = 50
+    private val MAX = Settings.CONTINUE_WATCHING_LIMITS.max()
 
-    fun all(ctx: Context): List<Progress> = read(ctx).filter { !it.finished }
+    fun all(ctx: Context): List<Progress> {
+        Settings.init(ctx)
+        val threshold = Settings.finishedThresholdPercent
+        return read(ctx).filter { !it.finished(threshold) }
+    }
 
     fun get(ctx: Context, type: MediaType, id: Int): Progress? =
         read(ctx).firstOrNull { it.type == type && it.id == id }
@@ -22,6 +26,10 @@ object ProgressStore {
         val list = read(ctx).filterNot { it.type == p.type && it.id == p.id }.toMutableList()
         list.add(0, p)
         write(ctx, list.take(MAX))
+    }
+
+    fun clear(ctx: Context) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
     }
 
     private fun read(ctx: Context): List<Progress> {

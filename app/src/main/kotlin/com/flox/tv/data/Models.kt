@@ -56,5 +56,5 @@ data class Progress(
     val lastUpdated: Long
 ) {
     val fraction: Float get() = if (durationSeconds <= 0) 0f else watchedSeconds.toFloat() / durationSeconds
-    val finished: Boolean get() = fraction >= 0.95f
+    fun finished(thresholdPercent: Int): Boolean = fraction * 100 >= thresholdPercent
 }

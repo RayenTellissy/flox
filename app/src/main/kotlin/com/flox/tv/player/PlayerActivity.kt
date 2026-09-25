@@ -2,6 +2,7 @@ package com.flox.tv.player
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
@@ -18,12 +19,17 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.flox.tv.BuildConfig
 import com.flox.tv.R
+import com.flox.tv.data.AspectMode
 import com.flox.tv.data.MediaType
+import com.flox.tv.data.ResumeMode
+import com.flox.tv.data.Settings
+import com.flox.tv.data.SubtitleSize
 import com.flox.tv.data.Tmdb
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.Telegram
@@ -63,10 +69,13 @@ class PlayerActivity : Activity() {
     private var libraryFailed = false
     private var playingLibrary = false
     private var libraryEntry: Library.Entry? = null
+    private var seekStep = Settings.DEFAULT_SEEK_STEP_SECONDS
+    private var autoplayNext = Settings.DEFAULT_AUTOPLAY_NEXT
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Settings.init(this)
         setContentView(R.layout.activity_player)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         goImmersive()
@@ -77,6 +86,20 @@ class PlayerActivity : Activity() {
         hint = findViewById(R.id.player_hint)
         failed = findViewById(R.id.player_failed)
         val warning = findViewById<TextView>(R.id.webview_warning)
+        seekStep = Settings.seekStepSeconds
+        autoplayNext = Settings.autoplayNext
+        controls.stepSeconds = seekStep
+        controls.hideMs = Settings.overlayHideMs.toLong()
+        nativeView.resizeMode = when (Settings.aspectMode) {
+            AspectMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+            AspectMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            AspectMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        }
+        when (Settings.subtitleSize) {
+            SubtitleSize.SMALL -> nativeView.subtitleView?.setFractionalTextSize(SUBTITLE_SMALL)
+            SubtitleSize.NORMAL -> Unit
+            SubtitleSize.LARGE -> nativeView.subtitleView?.setFractionalTextSize(SUBTITLE_LARGE)
+        }
 
         val id = intent.getIntExtra(PlayerIntent.EXTRA_ID, 0)
         val type = MediaType.from(intent.getStringExtra(PlayerIntent.EXTRA_TYPE))
@@ -143,7 +166,7 @@ class PlayerActivity : Activity() {
         controls.onAudio = { showAudioTracks() }
         controls.onSubtitles = { cycleSubtitles() }
         controls.onQuality = { cycleQuality() }
-        Library.preferredQuality = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_QUALITY, "").orEmpty()
+        Library.preferredQuality = Settings.preferredQuality.orEmpty()
         controls.onNext = { playNext() }
         controls.onBack = { finish() }
         webView.setBackgroundColor(0xFF000000.toInt())
@@ -160,6 +183,18 @@ class PlayerActivity : Activity() {
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
         webView.requestFocus()
+        when {
+            startAt <= 0 -> begin()
+            Settings.resumeMode == ResumeMode.NEVER -> {
+                startAt = 0
+                begin()
+            }
+            Settings.resumeMode == ResumeMode.ASK -> askResume()
+            else -> begin()
+        }
+    }
+
+    private fun begin() {
         val debugManifest = if (BuildConfig.DEBUG) intent.getStringExtra("debugManifest") else null
         if (debugManifest != null) {
             // debug builds can bypass the page and play a manifest straight away
@@ -168,6 +203,25 @@ class PlayerActivity : Activity() {
         } else {
             load()
         }
+    }
+
+    /** Offers to resume or start over before anything loads; BACK leaves the player. */
+    private fun askResume() {
+        val h = startAt / 3600
+        val m = (startAt % 3600) / 60
+        val s = startAt % 60
+        val stamp = if (h > 0) String.format("%d:%02d:%02d", h, m, s) else String.format("%02d:%02d", m, s)
+        val dialog = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle(bridge.meta.title)
+            .setPositiveButton(getString(R.string.player_resume_fmt, stamp)) { _, _ -> begin() }
+            .setNegativeButton(R.string.player_start_over) { _, _ ->
+                startAt = 0
+                begin()
+            }
+            .setOnCancelListener { finish() }
+            .create()
+        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus() }
+        dialog.show()
     }
 
     private fun load() {
@@ -208,6 +262,8 @@ class PlayerActivity : Activity() {
     private fun onPageReady(view: WebView) {
         view.evaluateJavascript(AdBlock.navScript(this), null)
         if (startAt > 0) view.evaluateJavascript("window.__floxApplyStart && window.__floxApplyStart($startAt)", null)
+        val speed = Settings.playbackSpeed
+        if (speed != 1f) view.evaluateJavascript("window.__floxApplySpeed && window.__floxApplySpeed($speed)", null)
     }
 
     private fun onManifest(m: PlayerBridge.Manifest) {
@@ -248,7 +304,7 @@ class PlayerActivity : Activity() {
         val all = libraryVariants()
         if (all.size < 2) return
         val next = all[(all.indexOfFirst { it.label == current.label } + 1) % all.size]
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_QUALITY, next.quality).apply()
+        Settings.preferredQuality = next.quality
         Library.preferredQuality = next.quality
         startAt = native.currentSeconds()
         native.stop()
@@ -322,7 +378,16 @@ class PlayerActivity : Activity() {
         }
         scope.launch {
             if (episodeCount == 0) episodeCount = Tmdb.episodes(m.id, m.season).getOrNull()?.size ?: 0
-            if (m.episode < episodeCount) playNext() else finish()
+            when {
+                m.episode >= episodeCount -> finish()
+                autoplayNext -> playNext()
+                // stay on the last frame; the overlay offers the next episode
+                nativeShown -> {
+                    controls.setNextAvailable(true)
+                    controls.show()
+                }
+                else -> showHint(getString(R.string.player_episode_finished))
+            }
         }
     }
 
@@ -402,8 +467,8 @@ class PlayerActivity : Activity() {
             KeyEvent.KEYCODE_MEDIA_PAUSE -> js("__flox.state()&&!__flox.state().paused&&__flox.key(' ','Space')")
             KeyEvent.KEYCODE_DPAD_LEFT -> js("__flox.key('ArrowLeft','ArrowLeft')")
             KeyEvent.KEYCODE_DPAD_RIGHT -> js("__flox.key('ArrowRight','ArrowRight')")
-            KeyEvent.KEYCODE_MEDIA_REWIND -> js("__flox.seek(-30)")
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> js("__flox.seek(30)")
+            KeyEvent.KEYCODE_MEDIA_REWIND -> js("__flox.seek(${-mediaKeyStep()})")
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> js("__flox.seek(${mediaKeyStep()})")
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> enterNav()
             else -> return super.dispatchKeyEvent(event)
         }
@@ -425,8 +490,8 @@ class PlayerActivity : Activity() {
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { native.togglePlay(); true }
                 KeyEvent.KEYCODE_MEDIA_PLAY -> { native.play(); true }
                 KeyEvent.KEYCODE_MEDIA_PAUSE -> { native.pause(); true }
-                KeyEvent.KEYCODE_MEDIA_REWIND -> { seekHidden(-30); true }
-                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekHidden(30); true }
+                KeyEvent.KEYCODE_MEDIA_REWIND -> { seekHidden(-mediaKeyStep()); true }
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekHidden(mediaKeyStep()); true }
                 else -> false
             }
             if (handled) {
@@ -442,13 +507,15 @@ class PlayerActivity : Activity() {
         if (event.action != KeyEvent.ACTION_DOWN) return true
         when (code) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { native.togglePlay(); controls.show() }
-            KeyEvent.KEYCODE_DPAD_LEFT -> seekHidden(-PlayerControls.seekStep(event.repeatCount))
-            KeyEvent.KEYCODE_DPAD_RIGHT -> seekHidden(PlayerControls.seekStep(event.repeatCount))
+            KeyEvent.KEYCODE_DPAD_LEFT -> seekHidden(-controls.seekStep(event.repeatCount))
+            KeyEvent.KEYCODE_DPAD_RIGHT -> seekHidden(controls.seekStep(event.repeatCount))
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> controls.show()
             else -> return super.dispatchKeyEvent(event)
         }
         return true
     }
+
+    private fun mediaKeyStep() = seekStep * 3
 
     private fun seekHidden(seconds: Int) {
         native.seekBy(seconds)
@@ -563,8 +630,8 @@ class PlayerActivity : Activity() {
     private companion object {
         const val HINT_MS = 2500L
         const val VOLUME_STEP = 0.1f
-        const val PREFS = "flox_player"
-        const val PREF_QUALITY = "quality"
+        const val SUBTITLE_SMALL = 0.04f
+        const val SUBTITLE_LARGE = 0.07f
         const val WATCHDOG_MS = 45_000L
         const val MIN_WEBVIEW_MAJOR = 89
     }

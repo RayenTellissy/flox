@@ -94,6 +94,9 @@ object Telegram {
             is TdApi.AuthorizationStateClosed -> {
                 client = null
                 chatsLoaded = false
+                chats.clear()
+                files.clear()
+                activeStart.clear()
                 setAuth(Auth.Idle)
             }
             else -> {}

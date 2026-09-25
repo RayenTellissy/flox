@@ -27,6 +27,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import com.flox.tv.BuildConfig
 import com.flox.tv.R
+import com.flox.tv.data.Settings
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.TdDataSource
 import com.flox.tv.telegram.Telegram
@@ -46,12 +47,10 @@ class NativePlayer(
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var player: ExoPlayer? = null
-    private val loudness = Loudness()
+    private var loudness: Loudness? = null
     private var startAtSec = 0
     private var startApplied = false
     private var libraryEntry: Library.Entry? = null
-    // the language picked from the audio list carries over to the next file this session
-    private var preferredAudioLanguage: String? = null
 
     data class AudioTrack(val label: String, val language: String?, val selected: Boolean)
 
@@ -78,10 +77,12 @@ class NativePlayer(
     private val listener = object : Player.Listener {
         override fun onRenderedFirstFrame() = onFirstFrame()
 
-        override fun onAudioSessionIdChanged(audioSessionId: Int) = loudness.attach(audioSessionId)
+        override fun onAudioSessionIdChanged(audioSessionId: Int) {
+            loudness?.attach(audioSessionId)
+        }
 
         override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_READY) player?.let { loudness.attach(it.audioSessionId) }
+            if (state == Player.STATE_READY) player?.let { loudness?.attach(it.audioSessionId) }
             val p = player ?: return
             if (state == Player.STATE_READY && !startApplied) {
                 startApplied = true
@@ -132,7 +133,7 @@ class NativePlayer(
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
-        val preferred = java.util.Locale.getDefault().getDisplayLanguage(java.util.Locale.ENGLISH)
+        val preferred = java.util.Locale.forLanguageTag(subtitleLanguage()).getDisplayLanguage(java.util.Locale.ENGLISH)
         val ordered = captions.sortedBy { if (it.language.equals(preferred, true)) 0 else 1 }
         val subtitles = ordered.mapNotNull { c ->
             val mime = when {
@@ -143,6 +144,7 @@ class NativePlayer(
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(c.url))
                 .setMimeType(mime)
                 .setLabel(c.language.ifBlank { "Subtitles" })
+                .setLanguage(languageCode(c.language))
                 .setSelectionFlags(0)
                 .build()
         }
@@ -185,11 +187,13 @@ class NativePlayer(
             setParameters(
                 buildUponParameters()
                     .apply { if (!allowSoftwareHevc) setMaxVideoSize(1920, 1080) }
-                    .setPreferredTextLanguage(null)
-                    .apply { preferredAudioLanguage?.let { setPreferredAudioLanguage(it) } }
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .setPreferredTextLanguage(subtitleLanguage())
+                    .setSelectUndeterminedTextLanguage(true)
+                    .apply { Settings.audioLanguage?.let { setPreferredAudioLanguage(it) } }
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !Settings.subtitlesEnabled)
             )
         }
+        loudness = if (Settings.loudnessBoost && Settings.loudnessGainDb > 0f) Loudness(Settings.loudnessGainDb) else null
         // no hardware HEVC decoder: hide HEVC so an HEVC-only page source falls back to the page player.
         // Library files have no other quality, so any decoder is better than nothing there.
         val noHevc = !allowSoftwareHevc && !Codecs.hasHevcDecoder()
@@ -221,6 +225,7 @@ class NativePlayer(
         p.setMediaItem(item)
         p.playWhenReady = true
         p.prepare()
+        p.setPlaybackSpeed(Settings.playbackSpeed)
         view.player = p
         player = p
         main.removeCallbacks(ticker)
@@ -308,9 +313,15 @@ class NativePlayer(
             .setOverrideForType(TrackSelectionOverride(option.group.mediaTrackGroup, option.tracks))
             .build()
         val track = audioTracks()[index].copy(selected = true)
-        track.language?.let { preferredAudioLanguage = it }
+        track.language?.let { Settings.audioLanguage = it }
         return track
     }
+
+    private fun subtitleLanguage(): String = Settings.subtitleLanguage ?: java.util.Locale.getDefault().language
+
+    // page captions name their language in English ("Spanish"); the selector matches on codes
+    private fun languageCode(name: String): String? =
+        name.takeIf { it.isNotBlank() }?.let { LANGUAGE_CODES[it.lowercase(java.util.Locale.ENGLISH)] }
 
     private fun audioLabel(f: Format, n: Int): String {
         val language = f.language?.takeIf { it.isNotBlank() && it != C.LANGUAGE_UNDETERMINED }
@@ -355,7 +366,8 @@ class NativePlayer(
         val p = player ?: return
         player = null
         view.player = null
-        loudness.release()
+        loudness?.release()
+        loudness = null
         p.removeListener(listener)
         p.removeAnalyticsListener(analytics)
         p.release()
@@ -366,5 +378,8 @@ class NativePlayer(
     private companion object {
         const val TICK_MS = 2000L
         val RESERVED_HEADERS = setOf("host", "content-length", "connection", "accept-encoding", "user-agent", "cookie")
+        val LANGUAGE_CODES: Map<String, String> by lazy {
+            java.util.Locale.getISOLanguages().associateBy { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale.ENGLISH).lowercase(java.util.Locale.ENGLISH) }
+        }
     }
 }

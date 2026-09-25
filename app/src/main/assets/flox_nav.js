@@ -200,6 +200,18 @@
     }, 500)
   }
 
+  window.__floxApplySpeed = function (rate) {
+    var tries = 0
+    var t = setInterval(function () {
+      var v = video()
+      tries++
+      if (v && v.readyState >= 1) {
+        v.playbackRate = rate
+        clearInterval(t)
+      } else if (tries > 60) clearInterval(t)
+    }, 500)
+  }
+
   window.__flox = {
     nav: nav, activate: activate, enter: enter, exit: exit, closePanel: closePanel, panelOpen: panelOpen,
     clickLabel: clickLabel, key: key, wake: wake, state: state,

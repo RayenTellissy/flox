@@ -1,5 +1,6 @@
 package com.flox.tv.telegram
 
+import com.flox.tv.data.LibrarySort
 import com.flox.tv.data.MediaType
 import org.drinkless.tdlib.TdApi
 import org.json.JSONObject
@@ -45,6 +46,27 @@ object Library {
     /** Season numbers of a show that have at least one uploaded episode. */
     fun seasons(tmdb: Int): Set<Int> = entries.keys.filter { it.tmdb == tmdb && it.type == MediaType.TV }.map { it.season }.toSet()
 
+    /**
+     * Distinct titles in the requested order. Date added uses the newest message id among a title's parts,
+     * since message ids grow with upload time; size uses the largest print. Title order needs TMDB names,
+     * so for [LibrarySort.TITLE] the caller sorts after resolving them.
+     */
+    fun titles(sort: LibrarySort): List<Pair<Int, MediaType>> {
+        val groups = entries.values.flatten().groupBy { it.key.tmdb to it.key.type }
+        val sorted = when (sort) {
+            LibrarySort.DATE_ADDED -> groups.entries.sortedByDescending { (_, list) -> list.maxOf { e -> e.parts.maxOfOrNull { it.messageId } ?: 0L } }
+            LibrarySort.SIZE -> groups.entries.sortedByDescending { (_, list) -> list.maxOf { it.totalSize } }
+            LibrarySort.TITLE -> groups.entries.toList()
+        }
+        return sorted.map { it.key }
+    }
+
+    /** Forgets the indexed channel, used after signing out. */
+    fun clear() {
+        chatId = 0L
+        entries = emptyMap()
+    }
+
     suspend fun refresh(chatTitle: String = DEFAULT_CHAT): Boolean {
         if (!Telegram.ready) return false
         val chat = Telegram.chatByTitle(chatTitle)
@@ -82,6 +104,7 @@ object Library {
             index.getOrPut(key) { ArrayList() }
                 .add(Entry(key, first.second.quality, first.second.codec, sorted.map { it.first }, subtitles[first.first.messageId]))
         }
+        if (!Telegram.ready) return false
         entries = index.mapValues { (_, list) -> list.sortedWith(compareByDescending<Entry> { it.height }.thenBy { it.label }) }
         return true
     }

@@ -7,10 +7,12 @@ import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.View
 import com.flox.tv.R
+import com.flox.tv.data.Settings
 
 /** Flat square seek bar: hairline track, buffered band, white played band, block thumb while focused. */
 class SeekBarView @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? = null) : View(ctx, attrs) {
     var onScrub: ((seconds: Int) -> Unit)? = null
+    var stepSeconds = Settings.DEFAULT_SEEK_STEP_SECONDS
 
     private var position = 0L
     private var duration = 0L
@@ -56,7 +58,7 @@ class SeekBarView @JvmOverloads constructor(ctx: Context, attrs: AttributeSet? =
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        val step = PlayerControls.seekStep(event.repeatCount)
+        val step = PlayerControls.seekStep(stepSeconds, event.repeatCount)
         return when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> { onScrub?.invoke(-step); true }
             KeyEvent.KEYCODE_DPAD_RIGHT -> { onScrub?.invoke(step); true }

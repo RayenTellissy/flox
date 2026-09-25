@@ -11,16 +11,20 @@ import android.widget.Button
 import android.widget.ScrollView
 import android.widget.TextView
 import com.flox.tv.R
+import com.flox.tv.data.LibrarySort
 import com.flox.tv.data.MediaItem
 import com.flox.tv.data.MediaType
 import com.flox.tv.data.ProgressStore
+import com.flox.tv.data.Settings
 import com.flox.tv.data.Tmdb
 import com.flox.tv.player.PlayerIntent
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.Telegram
 import com.flox.tv.telegram.TelegramLoginActivity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class HomeActivity : Activity() {
@@ -35,14 +39,22 @@ class HomeActivity : Activity() {
     private val authListener: (Telegram.Auth) -> Unit = { a -> runOnUiThread { onAuth(a) } }
     private lateinit var moviesRow: Row
     private lateinit var tvRow: Row
+    private var libraryJob: Job? = null
+    private var libraryStale = false
+    private val settingsListener: (String) -> Unit = { key ->
+        if (key == Settings.KEY_LIBRARY_SORT || key == Settings.KEY_TELEGRAM_CHANNEL) libraryStale = true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Settings.init(this)
+        Settings.addListener(settingsListener)
         setContentView(R.layout.activity_home)
         findViewById<ScrollView>(R.id.scroll).isSmoothScrollingEnabled = false
 
         val search = findViewById<Button>(R.id.search)
         search.setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
+        findViewById<Button>(R.id.settings).setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
         continueRow = Row(findViewById(R.id.row_continue), R.string.row_continue, R.drawable.ic_continue) { openContinue(it) }
         libraryRow = Row(findViewById(R.id.row_library), R.string.row_library, R.drawable.ic_movie) { openDetails(it, libraryOnly = true) }
@@ -64,13 +76,15 @@ class HomeActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        val items = ProgressStore.all(this).map { CardItem.Continue(it) }
+        val items = ProgressStore.all(this).take(Settings.continueWatchingLimit).map { CardItem.Continue(it) }
         continueRow.root.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
         continueRow.show(items)
+        if (libraryStale && Telegram.ready) loadLibrary()
     }
 
     override fun onDestroy() {
         Telegram.removeAuthListener(authListener)
+        Settings.removeListener(settingsListener)
         scope.cancel()
         super.onDestroy()
     }
@@ -79,19 +93,27 @@ class HomeActivity : Activity() {
         when (a) {
             Telegram.Auth.Ready -> loadLibrary()
             Telegram.Auth.Loading -> libraryRow.loading()
-            else -> libraryRow.prompt(R.string.state_connect_telegram)
+            else -> {
+                libraryJob?.cancel()
+                libraryRow.prompt(R.string.state_connect_telegram)
+            }
         }
     }
 
     private fun loadLibrary() {
+        libraryStale = false
+        libraryJob?.cancel()
         libraryRow.loading()
-        scope.launch {
-            val ok = runCatching { Library.refresh() }.getOrDefault(false)
+        libraryJob = scope.launch {
+            val ok = runCatching { Library.refresh(Settings.telegramChannel) }.getOrDefault(false)
+            if (!isActive) return@launch
             if (!ok) { libraryRow.error(); return@launch }
-            val titles = Library.entries.keys.map { it.tmdb to it.type }.distinct()
-            val items = titles.mapNotNull { (id, type) ->
+            val sort = Settings.librarySort
+            val resolved = Library.titles(sort).mapNotNull { (id, type) ->
                 Tmdb.details(type, id).getOrNull()?.let { MediaItem(it.id, it.type, it.title, it.year, it.posterPath, it.overview) }
             }
+            if (!isActive) return@launch
+            val items = if (sort == LibrarySort.TITLE) resolved.sortedBy { it.title.lowercase() } else resolved
             libraryRow.show(items.map { CardItem.Media(it) }, R.string.state_library_empty)
         }
     }

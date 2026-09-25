@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.media3.common.util.UnstableApi
 import com.flox.tv.R
 import com.flox.tv.data.MediaType
+import com.flox.tv.data.Settings
 
 /** Overlay owned by flox that replaces the stock Media3 controller. */
 @UnstableApi
@@ -29,6 +30,14 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
 
     private val main = Handler(Looper.getMainLooper())
     private var native: NativePlayer? = null
+
+    var hideMs = Settings.DEFAULT_OVERLAY_HIDE_MS.toLong()
+    /** Base seek step; the rewind and forward buttons use it as is, held keys grow from it. */
+    var stepSeconds = Settings.DEFAULT_SEEK_STEP_SECONDS
+        set(value) {
+            field = value
+            seek.stepSeconds = value
+        }
 
     private val eyebrow: TextView
     private val title: TextView
@@ -72,8 +81,8 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
         tracksList = findViewById(R.id.controls_tracks_list)
         seek.onScrub = { s -> onSeekBy?.invoke(s); touch() }
         playPause.setOnClickListener { onPlayPause?.invoke(); touch() }
-        findViewById<ImageButton>(R.id.controls_rewind).setOnClickListener { onSeekBy?.invoke(-10); touch() }
-        findViewById<ImageButton>(R.id.controls_forward).setOnClickListener { onSeekBy?.invoke(10); touch() }
+        findViewById<ImageButton>(R.id.controls_rewind).setOnClickListener { onSeekBy?.invoke(-stepSeconds); touch() }
+        findViewById<ImageButton>(R.id.controls_forward).setOnClickListener { onSeekBy?.invoke(stepSeconds); touch() }
         findViewById<ImageButton>(R.id.controls_volume_down).setOnClickListener { onVolume?.invoke(false); touch() }
         findViewById<ImageButton>(R.id.controls_volume_up).setOnClickListener { onVolume?.invoke(true); touch() }
         audio.setOnClickListener { onAudio?.invoke(); touch() }
@@ -184,8 +193,10 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     /** Any interaction restarts the auto-hide timer. */
     fun touch() {
         main.removeCallbacks(hideLater)
-        main.postDelayed(hideLater, HIDE_MS)
+        main.postDelayed(hideLater, hideMs)
     }
+
+    fun seekStep(repeatCount: Int): Int = seekStep(stepSeconds, repeatCount)
 
     fun release() {
         main.removeCallbacksAndMessages(null)
@@ -215,14 +226,13 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     }
 
     companion object {
-        const val HIDE_MS = 4000L
         private const val TICK_MS = 250L
 
-        /** 10 s per press, growing while the key is held. */
-        fun seekStep(repeatCount: Int): Int = when {
-            repeatCount < 4 -> 10
-            repeatCount < 10 -> 30
-            else -> 60
+        /** One step per press, growing to three and then six steps while the key is held. */
+        fun seekStep(step: Int, repeatCount: Int): Int = step * when {
+            repeatCount < 4 -> 1
+            repeatCount < 10 -> 3
+            else -> 6
         }
     }
 }

@@ -18,15 +18,31 @@
         android:orientation="vertical"
         android:padding="@dimen/screen_padding">
 
-        <Button
-            android:id="@+id/search"
-            style="@style/Button.Ghost"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_search"
-            android:drawablePadding="@dimen/space_12"
-            android:drawableTint="@color/text_secondary"
-            android:text="@string/search" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/search"
+                style="@style/Button.Ghost"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:drawableStart="@drawable/ic_search"
+                android:drawablePadding="@dimen/space_12"
+                android:drawableTint="@color/text_secondary"
+                android:nextFocusRight="@+id/settings"
+                android:text="@string/search" />
+
+            <Button
+                android:id="@+id/settings"
+                style="@style/Button.Ghost"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/space_16"
+                android:nextFocusLeft="@id/search"
+                android:text="@string/settings" />
+        </LinearLayout>
 
         <include
             android:id="@+id/row_continue"

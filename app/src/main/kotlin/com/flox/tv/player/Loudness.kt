@@ -5,11 +5,11 @@ import android.util.Log
 import com.flox.tv.BuildConfig
 
 /**
- * Makes the native player louder without clipping: a fixed pre-gain followed by a brickwall limiter
+ * Makes the native player louder without clipping: a pre-gain followed by a brickwall limiter
  * so peaks that would overshoot full scale are caught instead of distorting. TV speakers are quiet
  * and film mixes sit well below full scale, so a few dB of headroom is nearly always available.
  */
-class Loudness {
+class Loudness(private val gainDb: Float) {
     private var effect: DynamicsProcessing? = null
     private var session = 0
 
@@ -23,7 +23,7 @@ class Loudness {
                 false, 1, false, 1, false, 1, true
             ).setPreferredFrameDuration(10f).build()
             val dp = DynamicsProcessing(0, audioSessionId, config)
-            dp.setInputGainAllChannelsTo(GAIN_DB)
+            dp.setInputGainAllChannelsTo(gainDb)
             for (ch in 0 until CHANNELS) {
                 val limiter = dp.getLimiterByChannelIndex(ch)
                 limiter.isEnabled = true
@@ -48,7 +48,6 @@ class Loudness {
 
     private companion object {
         const val CHANNELS = 2
-        const val GAIN_DB = 8f
         const val LIMIT_DB = -1f
     }
 }
