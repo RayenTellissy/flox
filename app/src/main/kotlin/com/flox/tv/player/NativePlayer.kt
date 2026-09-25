@@ -13,6 +13,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
@@ -25,6 +26,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import com.flox.tv.BuildConfig
+import com.flox.tv.R
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.TdDataSource
 import com.flox.tv.telegram.Telegram
@@ -48,6 +50,10 @@ class NativePlayer(
     private var startAtSec = 0
     private var startApplied = false
     private var libraryEntry: Library.Entry? = null
+    // the language picked from the audio list carries over to the next file this session
+    private var preferredAudioLanguage: String? = null
+
+    data class AudioTrack(val label: String, val language: String?, val selected: Boolean)
 
     val active get() = player != null
     /** Fires when the loaded tracks change, so the overlay can show or hide the subtitles button. */
@@ -180,6 +186,7 @@ class NativePlayer(
                 buildUponParameters()
                     .apply { if (!allowSoftwareHevc) setMaxVideoSize(1920, 1080) }
                     .setPreferredTextLanguage(null)
+                    .apply { preferredAudioLanguage?.let { setPreferredAudioLanguage(it) } }
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             )
         }
@@ -267,6 +274,80 @@ class NativePlayer(
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0))
             .build()
         return group.getTrackFormat(0).label ?: group.getTrackFormat(0).language ?: "Subtitles"
+    }
+
+    // one entry per distinct language, codec and layout; a bitrate ladder of the same kind stays one adaptive entry
+    private class AudioOption(val group: Tracks.Group, val tracks: List<Int>) {
+        val format: Format get() = group.getTrackFormat(tracks.first())
+        val selected get() = group.isSelected && tracks.any { group.isTrackSelected(it) }
+    }
+
+    private fun audioOptions(): List<AudioOption> =
+        player?.currentTracks?.groups.orEmpty()
+            .filter { it.type == C.TRACK_TYPE_AUDIO }
+            .flatMap { group ->
+                (0 until group.length)
+                    .filter { group.isTrackSupported(it) }
+                    .groupBy { group.getTrackFormat(it).let { f -> Triple(f.language, f.sampleMimeType ?: f.codecs, f.channelCount) } }
+                    .values
+                    .map { AudioOption(group, it) }
+            }
+
+    /** Language, name, codec and channels per track, like VLC's audio track menu. */
+    fun audioTracks(): List<AudioTrack> = audioOptions().mapIndexed { i, option ->
+        val f = option.format
+        AudioTrack(audioLabel(f, i + 1), f.language?.takeIf { it.isNotBlank() && it != C.LANGUAGE_UNDETERMINED }, option.selected)
+    }
+
+    /** Pins the audio track at [index]; returns it. */
+    fun selectAudio(index: Int): AudioTrack? {
+        val p = player ?: return null
+        val option = audioOptions().getOrNull(index) ?: return null
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+            .setOverrideForType(TrackSelectionOverride(option.group.mediaTrackGroup, option.tracks))
+            .build()
+        val track = audioTracks()[index].copy(selected = true)
+        track.language?.let { preferredAudioLanguage = it }
+        return track
+    }
+
+    private fun audioLabel(f: Format, n: Int): String {
+        val language = f.language?.takeIf { it.isNotBlank() && it != C.LANGUAGE_UNDETERMINED }
+            ?.let { java.util.Locale.forLanguageTag(it).getDisplayLanguage(java.util.Locale.ENGLISH).ifBlank { it } }
+        val name = f.label?.takeIf { it.isNotBlank() && (language == null || !it.contains(language, true)) }
+        val head = listOfNotNull(language, name).joinToString(" · ").ifBlank { ctx.getString(R.string.player_audio_track_fmt, n) }
+        return listOfNotNull(head, codecName(f), channelName(f.channelCount)).joinToString(" · ")
+    }
+
+    private fun codecName(f: Format): String? = when (f.sampleMimeType ?: f.codecs?.let { MimeTypes.getAudioMediaMimeType(it) }) {
+        MimeTypes.AUDIO_AAC -> "AAC"
+        MimeTypes.AUDIO_AC3 -> "AC3"
+        MimeTypes.AUDIO_E_AC3 -> "E-AC3"
+        MimeTypes.AUDIO_E_AC3_JOC -> "E-AC3 Atmos"
+        MimeTypes.AUDIO_AC4 -> "AC4"
+        MimeTypes.AUDIO_TRUEHD -> "TrueHD"
+        MimeTypes.AUDIO_DTS -> "DTS"
+        MimeTypes.AUDIO_DTS_HD -> "DTS-HD"
+        MimeTypes.AUDIO_DTS_EXPRESS -> "DTS Express"
+        MimeTypes.AUDIO_DTS_X -> "DTS:X"
+        MimeTypes.AUDIO_OPUS -> "Opus"
+        MimeTypes.AUDIO_VORBIS -> "Vorbis"
+        MimeTypes.AUDIO_FLAC -> "FLAC"
+        MimeTypes.AUDIO_ALAC -> "ALAC"
+        MimeTypes.AUDIO_MPEG -> "MP3"
+        MimeTypes.AUDIO_MPEG_L2 -> "MP2"
+        MimeTypes.AUDIO_RAW -> "PCM"
+        else -> null
+    }
+
+    private fun channelName(count: Int): String? = when (count) {
+        Format.NO_VALUE, 0 -> null
+        1 -> "Mono"
+        2 -> "Stereo"
+        6 -> "5.1"
+        8 -> "7.1"
+        else -> "${count}ch"
     }
 
     fun stop() {

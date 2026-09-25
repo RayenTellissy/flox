@@ -20,6 +20,8 @@ Opening a title from the `LIBRARY` row lists only the seasons and episodes that 
 
 Audio is always decoded to PCM rather than passed through as a Dolby bitstream, since many TVs report passthrough support for an output that then plays silence. Codecs the box has no decoder for (E-AC3, DTS, TrueHD) are decoded by bundled FFmpeg. The volume buttons move the device volume, or the player's own gain on boxes with a fixed volume.
 
+The audio button lists every audio track VLC style, with language, name, codec and channel layout (`English · E-AC3 · 5.1`). The picked language carries over to the next episode for the rest of the session. BACK closes the list.
+
 Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` in `local.properties`. Without them the library row stays hidden. On the TV, the `LIBRARY` row shows `CONNECT TELEGRAM`; it opens a QR code to scan from the Telegram app (Settings, Devices, Link Desktop Device). Uploaded episodes carry a `LIBRARY` stamp on the details screen and play from Telegram first, falling back to the page if the file fails.
 
 TDLib is bundled as `app/src/main/jniLibs/<abi>/libtdjni.so` plus the generated `org.drinkless.tdlib` Java classes, built from tdlib/td commit `d1085f9` with `example/android/build-tdlib.sh` for `arm64-v8a` and `armeabi-v7a`. Rebuild both together when upgrading.
@@ -49,7 +51,7 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 | PLAY-PAUSE | Play or pause |
 | LEFT / RIGHT | Seek 10 s, growing to 30 s and 60 s while held |
 | REWIND / FAST-FORWARD | Seek 30 s |
-| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, volume down / up, subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s |
+| UP / DOWN | Show the player overlay: title, seek bar, rewind, play/pause, forward, volume down / up, audio track (when there is more than one), subtitles (when a track exists), next episode (when one exists). D-pad moves between buttons, LEFT / RIGHT on the seek bar scrubs, BACK hides it. Hides itself after 4 s |
 | MENU | Cycle subtitles: off, then each track, device language first |
 | UP / DOWN or long CENTER | Page player only: enter navigation mode over its buttons |
 | MENU | Page player only: open its settings panel in navigation mode |

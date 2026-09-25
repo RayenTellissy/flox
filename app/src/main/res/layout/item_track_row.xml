@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_focusable"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="48dp"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/space_16"
+    android:paddingTop="@dimen/space_12"
+    android:paddingEnd="@dimen/space_16"
+    android:paddingBottom="@dimen/space_12">
+
+    <View
+        android:id="@+id/track_marker"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:background="@drawable/bg_track_marker" />
+
+    <TextView
+        android:id="@+id/track_label"
+        style="@style/Text.Caption"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/space_16"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFamily="@font/geist_mono_regular"
+        android:maxLines="1" />
+</LinearLayout>

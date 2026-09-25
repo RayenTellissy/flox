@@ -33,6 +33,10 @@
     <string name="player_play_pause">Play or pause</string>
     <string name="player_subtitles">Subtitles</string>
     <string name="player_quality">Quality</string>
+    <string name="player_audio">Audio track</string>
+    <string name="player_audio_heading">AUDIO</string>
+    <string name="player_audio_fmt">AUDIO · %1$s</string>
+    <string name="player_audio_track_fmt">Track %1$d</string>
     <string name="player_quality_fmt">QUALITY · %1$s</string>
     <string name="player_next">Next episode</string>
     <string name="player_volume_down">Volume down</string>

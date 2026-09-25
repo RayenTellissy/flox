@@ -8,6 +8,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.media3.common.util.UnstableApi
 import com.flox.tv.R
@@ -20,6 +21,7 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     var onSeekBy: ((Int) -> Unit)? = null
     /** True raises the volume, false lowers it. */
     var onVolume: ((Boolean) -> Unit)? = null
+    var onAudio: (() -> Unit)? = null
     var onSubtitles: (() -> Unit)? = null
     var onQuality: (() -> Unit)? = null
     var onNext: (() -> Unit)? = null
@@ -34,9 +36,15 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     private val position: TextView
     private val duration: TextView
     private val playPause: ImageButton
+    private val extras: LinearLayout
+    private val audio: ImageButton
     private val subtitles: ImageButton
     private val quality: ImageButton
     private val next: ImageButton
+    private val tracks: View
+    private val tracksHeading: TextView
+    private val tracksList: LinearLayout
+    private var tracksAnchor: View? = null
 
     private val hideLater = Runnable { hide() }
     private val ticker = object : Runnable {
@@ -54,15 +62,21 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
         position = findViewById(R.id.controls_position)
         duration = findViewById(R.id.controls_duration)
         playPause = findViewById(R.id.controls_play_pause)
+        extras = findViewById(R.id.controls_extras)
+        audio = findViewById(R.id.controls_audio)
         subtitles = findViewById(R.id.controls_subtitles)
         quality = findViewById(R.id.controls_quality)
         next = findViewById(R.id.controls_next)
+        tracks = findViewById(R.id.controls_tracks)
+        tracksHeading = findViewById(R.id.controls_tracks_heading)
+        tracksList = findViewById(R.id.controls_tracks_list)
         seek.onScrub = { s -> onSeekBy?.invoke(s); touch() }
         playPause.setOnClickListener { onPlayPause?.invoke(); touch() }
         findViewById<ImageButton>(R.id.controls_rewind).setOnClickListener { onSeekBy?.invoke(-10); touch() }
         findViewById<ImageButton>(R.id.controls_forward).setOnClickListener { onSeekBy?.invoke(10); touch() }
         findViewById<ImageButton>(R.id.controls_volume_down).setOnClickListener { onVolume?.invoke(false); touch() }
         findViewById<ImageButton>(R.id.controls_volume_up).setOnClickListener { onVolume?.invoke(true); touch() }
+        audio.setOnClickListener { onAudio?.invoke(); touch() }
         subtitles.setOnClickListener { onSubtitles?.invoke(); touch() }
         quality.setOnClickListener { onQuality?.invoke(); touch() }
         next.setOnClickListener { onNext?.invoke() }
@@ -79,17 +93,70 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
         refresh()
     }
 
-    fun setSubtitlesAvailable(available: Boolean) {
-        subtitles.visibility = if (available) VISIBLE else GONE
-    }
+    /** Shown only when the file carries more than one audio track. */
+    fun setAudioAvailable(available: Boolean) = setAvailable(audio, available)
+
+    fun setSubtitlesAvailable(available: Boolean) = setAvailable(subtitles, available)
 
     /** Shown only when the library holds more than one print of what is playing. */
-    fun setQualityAvailable(available: Boolean) {
-        quality.visibility = if (available) VISIBLE else GONE
+    fun setQualityAvailable(available: Boolean) = setAvailable(quality, available)
+
+    fun setNextAvailable(available: Boolean) = setAvailable(next, available)
+
+    // the group keeps its leading gap only while one of its buttons is showing
+    private fun setAvailable(button: View, available: Boolean) {
+        button.visibility = if (available) VISIBLE else GONE
+        extras.visibility = if ((0 until extras.childCount).any { extras.getChildAt(it).visibility == VISIBLE }) VISIBLE else GONE
     }
 
-    fun setNextAvailable(available: Boolean) {
-        next.visibility = if (available) VISIBLE else GONE
+    val tracksShown get() = tracks.visibility == VISIBLE
+
+    /** Lists tracks beside the overlay, VLC style; focus starts on the selected one and stays in the list. */
+    fun showTracks(heading: String, labels: List<String>, selected: Int, onPick: (Int) -> Unit) {
+        tracksAnchor = findFocus()
+        tracksHeading.text = heading
+        tracksList.removeAllViews()
+        val inflater = LayoutInflater.from(context)
+        labels.forEachIndexed { i, label ->
+            val row = inflater.inflate(R.layout.item_track_row, tracksList, false)
+            row.findViewById<View>(R.id.track_marker).isActivated = i == selected
+            row.findViewById<TextView>(R.id.track_label).apply {
+                text = label
+                setTextColor(context.getColor(if (i == selected) R.color.text_primary else R.color.text_secondary))
+            }
+            row.setOnClickListener {
+                hideTracks()
+                onPick(i)
+                touch()
+            }
+            tracksList.addView(row)
+        }
+        tracks.visibility = VISIBLE
+        tracksList.getChildAt(selected.coerceIn(0, labels.size - 1))?.requestFocus()
+        touch()
+    }
+
+    fun hideTracks() {
+        if (!tracksShown) return
+        tracks.visibility = GONE
+        tracksList.removeAllViews()
+        (tracksAnchor ?: playPause).requestFocus()
+        tracksAnchor = null
+    }
+
+    override fun focusSearch(focused: View?, direction: Int): View? {
+        val found = super.focusSearch(focused, direction)
+        if (!tracksShown) return found
+        return if (found != null && isInTracks(found)) found else focused
+    }
+
+    private fun isInTracks(view: View): Boolean {
+        var v: View? = view
+        while (v != null) {
+            if (v === tracks) return true
+            v = v.parent as? View
+        }
+        return false
     }
 
     val shown get() = visibility == VISIBLE
@@ -106,6 +173,9 @@ class PlayerControls @JvmOverloads constructor(ctx: Context, attrs: AttributeSet
     }
 
     fun hide() {
+        tracks.visibility = GONE
+        tracksList.removeAllViews()
+        tracksAnchor = null
         main.removeCallbacks(hideLater)
         main.removeCallbacks(ticker)
         visibility = GONE

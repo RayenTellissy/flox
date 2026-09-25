@@ -136,10 +136,11 @@ class PlayerActivity : Activity() {
             onFirstFrame = ::showNative,
             onFailed = ::onNativeFailed
         )
-        native.onTracksChanged = { controls.setSubtitlesAvailable(native.hasSubtitles()) }
+        native.onTracksChanged = { refreshTrackButtons() }
         controls.onPlayPause = { native.togglePlay() }
         controls.onSeekBy = { s -> native.seekBy(s) }
         controls.onVolume = { up -> adjustVolume(up) }
+        controls.onAudio = { showAudioTracks() }
         controls.onSubtitles = { cycleSubtitles() }
         controls.onQuality = { cycleQuality() }
         Library.preferredQuality = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_QUALITY, "").orEmpty()
@@ -231,7 +232,7 @@ class PlayerActivity : Activity() {
         webView.stopLoading()
         webView.loadUrl("about:blank")
         controls.bind(native, bridge.meta)
-        controls.setSubtitlesAvailable(native.hasSubtitles())
+        refreshTrackButtons()
         controls.setQualityAvailable(libraryEntry != null && libraryVariants().size > 1)
         nativeView.requestFocus()
     }
@@ -466,6 +467,19 @@ class PlayerActivity : Activity() {
         showHint(getString(R.string.player_volume_fmt, am.getStreamVolume(AudioManager.STREAM_MUSIC), am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)))
     }
 
+    private fun refreshTrackButtons() {
+        controls.setAudioAvailable(native.audioTracks().size > 1)
+        controls.setSubtitlesAvailable(native.hasSubtitles())
+    }
+
+    private fun showAudioTracks() {
+        val tracks = native.audioTracks()
+        if (tracks.isEmpty()) return
+        controls.showTracks(getString(R.string.player_audio_heading), tracks.map { it.label }, tracks.indexOfFirst { it.selected }) { i ->
+            native.selectAudio(i)?.let { showHint(getString(R.string.player_audio_fmt, it.label.uppercase())) }
+        }
+    }
+
     private fun cycleSubtitles() {
         val label = native.cycleSubtitles()
         showHint(if (label == null) getString(R.string.player_subtitles_off) else getString(R.string.player_subtitles_on, label.uppercase()))
@@ -473,6 +487,7 @@ class PlayerActivity : Activity() {
 
     private fun onBack() {
         when {
+            nativeShown && controls.tracksShown -> controls.hideTracks()
             nativeShown && controls.shown -> controls.hide()
             chrome.hasCustomView -> chrome.hideCustomView()
             navMode -> webView.evaluateJavascript("window.__flox?__flox.closePanel():false") { result ->
