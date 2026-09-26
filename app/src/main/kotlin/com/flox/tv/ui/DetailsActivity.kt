@@ -43,7 +43,7 @@ class DetailsActivity : Activity() {
         list = findViewById(R.id.list)
         list.layoutManager = LinearLayoutManager(this)
         list.setHasFixedSize(true)
-        adapter = DetailsAdapter(::play, ::selectSeason, ::playEpisode)
+        adapter = DetailsAdapter(::play, ::startOver, ::selectSeason, ::playEpisode)
         adapter.mediaId = mediaId
         list.adapter = adapter
 
@@ -138,15 +138,21 @@ class DetailsActivity : Activity() {
             getString(R.string.episode_fmt, p.lastEpisode)
     }
 
-    private fun play() {
+    private fun play() = launchPlayer(fromStart = false)
+
+    // Same title or episode as Resume, from 0:00
+    private fun startOver() = launchPlayer(fromStart = true)
+
+    private fun launchPlayer(fromStart: Boolean) {
         val d = details ?: return
         val p = progress
         val season = if (type == MediaType.TV) p?.lastSeason ?: 1 else 1
         val episode = if (type == MediaType.TV) p?.lastEpisode ?: 1 else 1
+        val startAt = if (fromStart) 0 else p?.watchedSeconds ?: 0
         startActivity(
             PlayerIntent.create(
                 this, d.id, type, d.title, d.posterPath,
-                season = season, episode = episode, startAtSeconds = p?.watchedSeconds ?: 0
+                season = season, episode = episode, startAtSeconds = startAt
             )
         )
     }

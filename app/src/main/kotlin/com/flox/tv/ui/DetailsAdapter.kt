@@ -25,6 +25,7 @@ sealed class DetailsRow {
 /** Single vertical list: header, optional seasons row, then episodes or a state stamp. */
 class DetailsAdapter(
     private val onPlay: () -> Unit,
+    private val onStartOver: () -> Unit,
     private val onSeason: (Int) -> Unit,
     private val onEpisode: (Episode) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -45,7 +46,7 @@ class DetailsAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
-            TYPE_HEADER -> HeaderVH(inflater.inflate(R.layout.item_details_header, parent, false), onPlay)
+            TYPE_HEADER -> HeaderVH(inflater.inflate(R.layout.item_details_header, parent, false), onPlay, onStartOver)
             TYPE_SEASONS -> SeasonsVH(inflater.inflate(R.layout.item_seasons_row, parent, false))
             TYPE_EPISODE -> EpisodeVH(inflater.inflate(R.layout.item_episode, parent, false), onEpisode) { mediaId }
             else -> StateVH(inflater.inflate(R.layout.item_state, parent, false))
@@ -61,15 +62,17 @@ class DetailsAdapter(
         }
     }
 
-    class HeaderVH(view: View, onPlay: () -> Unit) : RecyclerView.ViewHolder(view) {
+    class HeaderVH(view: View, onPlay: () -> Unit, onStartOver: () -> Unit) : RecyclerView.ViewHolder(view) {
         private val poster: ImageView = view.findViewById(R.id.poster)
         private val meta: TextView = view.findViewById(R.id.meta)
         private val title: TextView = view.findViewById(R.id.title)
         private val overview: TextView = view.findViewById(R.id.overview)
         val play: Button = view.findViewById(R.id.play)
+        private val startOver: Button = view.findViewById(R.id.start_over)
 
         init {
             play.setOnClickListener { onPlay() }
+            startOver.setOnClickListener { onStartOver() }
         }
 
         fun bind(row: DetailsRow.Header) {
@@ -85,6 +88,7 @@ class DetailsAdapter(
             overview.text = d.overview
             play.text = row.buttonText
             play.setCompoundDrawablesRelativeWithIntrinsicBounds(if (row.resume) R.drawable.ic_continue else R.drawable.ic_play, 0, 0, 0)
+            startOver.visibility = if (row.resume) View.VISIBLE else View.GONE
             ImageLoader.load(poster, Tmdb.detailPoster(d.posterPath))
         }
     }

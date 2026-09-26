@@ -22,8 +22,8 @@ android {
         applicationId = "com.flox.tv"
         minSdk = 28
         targetSdk = 34
-        versionCode = 13
-        versionName = "1.10.0"
+        versionCode = 14
+        versionName = "1.11.0"
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
         buildConfigField("int", "TELEGRAM_API_ID", telegramApiId)
         buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
