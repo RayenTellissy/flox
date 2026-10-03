@@ -179,10 +179,21 @@ class NativePlayer(
         launch(TdDataSource.Factory(ctx, entry), item, startAt, allowSoftwareHevc = true)
     }
 
-    private fun launch(factory: androidx.media3.datasource.DataSource.Factory, item: MediaItem, startAt: Int, allowSoftwareHevc: Boolean = false) {
+    /** Streams a direct file URL (a 4KHDHub print) at whatever resolution it was released in. */
+    fun startFile(url: String, startAt: Int) {
+        stop()
+        val http = DefaultHttpDataSource.Factory()
+            .setUserAgent(HdHub.USER_AGENT)
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(30_000)
+        launch(http, MediaItem.fromUri(url), startAt, allowSoftwareHevc = true)
+    }
+
+    private fun launch(factory:androidx.media3.datasource.DataSource.Factory, item: MediaItem, startAt: Int, allowSoftwareHevc: Boolean = false) {
         startAtSec = startAt
         startApplied = false
-        // page streams stay at 1080p; a library file plays at whatever it was uploaded in
+        // page streams stay at 1080p; library and 4KHDHub files play at whatever they were uploaded in
         val selector = DefaultTrackSelector(ctx).apply {
             setParameters(
                 buildUponParameters()
@@ -195,7 +206,7 @@ class NativePlayer(
         }
         loudness = if (Settings.loudnessBoost && Settings.loudnessGainDb > 0f) Loudness(Settings.loudnessGainDb) else null
         // no hardware HEVC decoder: hide HEVC so an HEVC-only page source falls back to the page player.
-        // Library files have no other quality, so any decoder is better than nothing there.
+        // Library and 4KHDHub files have no page fallback at the same quality, so any decoder is better than nothing there.
         val noHevc = !allowSoftwareHevc && !Codecs.hasHevcDecoder()
         val renderers = FloxRenderersFactory(ctx)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)

@@ -15,6 +15,7 @@
     <string name="search_hint">Title</string>
     <string name="play">PLAY</string>
     <string name="resume">RESUME</string>
+    <string name="play_hub">4KHDHUB</string>
     <string name="type_movie">MOVIE</string>
     <string name="type_tv">TV</string>
     <string name="season_fmt">S%1$d</string>
@@ -38,6 +39,9 @@
     <string name="player_audio_heading">AUDIO</string>
     <string name="player_audio_fmt">AUDIO · %1$s</string>
     <string name="player_audio_track_fmt">Track %1$d</string>
+    <string name="player_quality_heading">QUALITY</string>
+    <string name="player_hub_searching">FINDING ON 4KHDHUB</string>
+    <string name="player_hub_unavailable">NOT ON 4KHDHUB · USING DEFAULT SOURCE</string>
     <string name="player_quality_fmt">QUALITY · %1$s</string>
     <string name="player_next">Next episode</string>
     <string name="player_volume_down">Volume down</string>

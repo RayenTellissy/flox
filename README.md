@@ -26,6 +26,12 @@ Setup: create an app at https://my.telegram.org/apps and put `TELEGRAM_API_ID` a
 
 TDLib is bundled as `app/src/main/jniLibs/<abi>/libtdjni.so` plus the generated `org.drinkless.tdlib` Java classes, built from tdlib/td commit `d1085f9` with `example/android/build-tdlib.sh` for `arm64-v8a` and `armeabi-v7a`. Rebuild both together when upgrading.
 
+## 4KHDHub
+
+The `4KHDHUB` button on the details screen, or holding CENTER on an episode, streams the file straight from 4khdhub.one instead of VidLink or the library. The title is found the same way as the Mac app (TMDB poster, else name and year), the episode's HubCloud page is walked to a direct server when playback starts, since those links expire, and the first mirror that answers a range request is played so seeking works. Pixeldrain refuses hotlinks on busy files, so other mirrors are tried before giving up.
+
+The print defaults to the quality last picked when it has the episode, else the highest resolution, preferring plain HDR or SDR over Dolby Vision and WEB-DL over remux; boxes without a hardware HEVC decoder start on an H.264 print. The quality button lists every print with its size and switches at the same position. A stream that fails gets one fresh link; after that playback falls back to the library or the page.
+
 ## Build
 
 Requires Android SDK (platform 34) and a JDK 17+. Copy `local.properties.example` to `local.properties` and fill in the values.

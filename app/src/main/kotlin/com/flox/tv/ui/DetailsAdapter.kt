@@ -26,8 +26,10 @@ sealed class DetailsRow {
 class DetailsAdapter(
     private val onPlay: () -> Unit,
     private val onStartOver: () -> Unit,
+    private val onPlayHub: () -> Unit,
     private val onSeason: (Int) -> Unit,
-    private val onEpisode: (Episode) -> Unit
+    private val onEpisode: (Episode) -> Unit,
+    private val onEpisodeHub: (Episode) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     val rows = ArrayList<DetailsRow>()
@@ -46,9 +48,9 @@ class DetailsAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         return when (viewType) {
-            TYPE_HEADER -> HeaderVH(inflater.inflate(R.layout.item_details_header, parent, false), onPlay, onStartOver)
+            TYPE_HEADER -> HeaderVH(inflater.inflate(R.layout.item_details_header, parent, false), onPlay, onStartOver, onPlayHub)
             TYPE_SEASONS -> SeasonsVH(inflater.inflate(R.layout.item_seasons_row, parent, false))
-            TYPE_EPISODE -> EpisodeVH(inflater.inflate(R.layout.item_episode, parent, false), onEpisode) { mediaId }
+            TYPE_EPISODE -> EpisodeVH(inflater.inflate(R.layout.item_episode, parent, false), onEpisode, onEpisodeHub) { mediaId }
             else -> StateVH(inflater.inflate(R.layout.item_state, parent, false))
         }
     }
@@ -62,17 +64,19 @@ class DetailsAdapter(
         }
     }
 
-    class HeaderVH(view: View, onPlay: () -> Unit, onStartOver: () -> Unit) : RecyclerView.ViewHolder(view) {
+    class HeaderVH(view: View, onPlay: () -> Unit, onStartOver: () -> Unit, onPlayHub: () -> Unit) : RecyclerView.ViewHolder(view) {
         private val poster: ImageView = view.findViewById(R.id.poster)
         private val meta: TextView = view.findViewById(R.id.meta)
         private val title: TextView = view.findViewById(R.id.title)
         private val overview: TextView = view.findViewById(R.id.overview)
         val play: Button = view.findViewById(R.id.play)
         private val startOver: Button = view.findViewById(R.id.start_over)
+        private val playHub: Button = view.findViewById(R.id.play_hub)
 
         init {
             play.setOnClickListener { onPlay() }
             startOver.setOnClickListener { onStartOver() }
+            playHub.setOnClickListener { onPlayHub() }
         }
 
         fun bind(row: DetailsRow.Header) {
@@ -105,7 +109,7 @@ class DetailsAdapter(
         }
     }
 
-    class EpisodeVH(view: View, onEpisode: (Episode) -> Unit, private val mediaId: () -> Int) : RecyclerView.ViewHolder(view) {
+    class EpisodeVH(view: View, onEpisode: (Episode) -> Unit, onEpisodeHub: (Episode) -> Unit, private val mediaId: () -> Int) : RecyclerView.ViewHolder(view) {
         private val still: ImageView = view.findViewById(R.id.still)
         private val meta: TextView = view.findViewById(R.id.meta)
         private val name: TextView = view.findViewById(R.id.name)
@@ -114,6 +118,8 @@ class DetailsAdapter(
 
         init {
             view.setOnClickListener { episode?.let(onEpisode) }
+            // holding CENTER streams the episode from 4KHDHub
+            view.setOnLongClickListener { episode?.let(onEpisodeHub); true }
         }
 
         fun bind(e: Episode) {
