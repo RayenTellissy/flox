@@ -42,6 +42,10 @@ Requires Android SDK (platform 34) and a JDK 17+. Copy `local.properties.example
 
 Output: `app/build/outputs/apk/release/app-release.apk`
 
+## Updates
+
+Settings, ABOUT, `Check for updates` reads the latest GitHub release of `RayenTellissy/flox`. When its tag (`v1.13.0`) is newer than the installed version, CENTER shows the release notes and size, and `INSTALL` streams the `flox.apk` asset straight into a system install session; Android then asks to confirm, and the first time asks to allow Flox to install unknown apps. The download keeps running if you leave Settings. Releases must be signed with the same keystore as the installed build, or Android refuses the update.
+
 ## Sideload
 
 ```
