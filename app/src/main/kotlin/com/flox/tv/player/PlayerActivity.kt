@@ -34,10 +34,13 @@ import com.flox.tv.data.Tmdb
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.Telegram
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 @UnstableApi
 class PlayerActivity : Activity() {
@@ -69,6 +72,15 @@ class PlayerActivity : Activity() {
     private var libraryFailed = false
     private var playingLibrary = false
     private var libraryEntry: Library.Entry? = null
+    // 4KHDHub was asked for; a print that fails again after a fresh link falls back to the library or the page
+    private var hubWanted = false
+    private var hubFailed = false
+    private var hubRetried = false
+    private var playingHub = false
+    private var hubJob: Job? = null
+    private var hubVariants: List<HdHub.Variant> = emptyList()
+    private var hubVariant: HdHub.Variant? = null
+    private var year = ""
     private var seekStep = Settings.DEFAULT_SEEK_STEP_SECONDS
     private var autoplayNext = Settings.DEFAULT_AUTOPLAY_NEXT
 
@@ -104,6 +116,8 @@ class PlayerActivity : Activity() {
         val id = intent.getIntExtra(PlayerIntent.EXTRA_ID, 0)
         val type = MediaType.from(intent.getStringExtra(PlayerIntent.EXTRA_TYPE))
         startAt = intent.getIntExtra(PlayerIntent.EXTRA_START_AT, 0)
+        hubWanted = intent.getBooleanExtra(PlayerIntent.EXTRA_HUB, false)
+        year = intent.getStringExtra(PlayerIntent.EXTRA_YEAR).orEmpty()
         bridge = PlayerBridge(
             this,
             PlayerBridge.Meta(
@@ -235,6 +249,12 @@ class PlayerActivity : Activity() {
         refreshNext()
         webView.visibility = View.VISIBLE
         main.removeCallbacks(watchdog)
+        hubJob?.cancel()
+        playingHub = false
+        if (hubWanted && !hubFailed) {
+            playHub(hubVariant)
+            return
+        }
         val m = bridge.meta
         val entry = if (libraryFailed || !Telegram.ready) null
             else Library.get(m.id, m.type, if (m.type == MediaType.TV) m.season else 0, if (m.type == MediaType.TV) m.episode else 0)
@@ -256,6 +276,62 @@ class PlayerActivity : Activity() {
             }
             if (isFinishing || isDestroyed) return@launch
             native.startLibrary(entry, subtitle, startAt)
+        }
+    }
+
+    /** Finds the episode on 4KHDHub, picks a print, and streams its file; anything going wrong falls back to [load]. */
+    private fun playHub(variant: HdHub.Variant? = null) {
+        playingHub = true
+        playingLibrary = false
+        libraryEntry = null
+        showHint(getString(R.string.player_hub_searching), HUB_HINT_MS)
+        val m = bridge.meta
+        val episode = if (m.type == MediaType.TV) m.episode else 0
+        hubJob?.cancel()
+        hubJob = scope.launch {
+            val result = runCatching {
+                val all = HdHub.rank(HdHub.variants(m.id, m.type, m.title, year, m.posterPath, m.season, episode), Codecs.hasHevcDecoder())
+                // keep the print already playing for the next episode, else the remembered quality, else the best
+                val pick = variant?.let { v -> all.firstOrNull { it.label == v.label } }
+                    ?: all.firstOrNull { it.quality == Settings.preferredQuality }
+                    ?: all.firstOrNull()
+                    ?: throw IOException("not on 4KHDHub")
+                val file = pick.file(episode) ?: throw IOException("episode missing from print")
+                if (BuildConfig.DEBUG) Log.d("FloxPlayer", "4khdhub ${pick.label} ${file.name}")
+                Triple(all, pick, HdHub.resolve(file.hubcloud))
+            }
+            if (!isActive || isFinishing || isDestroyed) return@launch
+            result
+                .onSuccess { (all, pick, url) ->
+                    hubVariants = all
+                    hubVariant = pick
+                    native.startFile(url, startAt)
+                }
+                .onFailure { e ->
+                    if (BuildConfig.DEBUG) Log.d("FloxPlayer", "4khdhub failed: ${e.message}")
+                    hubFailed = true
+                    load()
+                    showHint(getString(R.string.player_hub_unavailable))
+                }
+        }
+    }
+
+    /** Lists the episode's prints with their sizes; picking one restarts it at the same position and remembers the quality. */
+    private fun showHubPrints() {
+        val current = hubVariant ?: return
+        val episode = if (bridge.meta.type == MediaType.TV) bridge.meta.episode else 0
+        val labels = hubVariants.map { v -> listOf(v.label, v.file(episode)?.size.orEmpty()).filter { it.isNotBlank() }.joinToString(" · ") }
+        controls.showTracks(getString(R.string.player_quality_heading), labels, hubVariants.indexOf(current)) { i ->
+            val next = hubVariants[i]
+            if (next == current) return@showTracks
+            Settings.preferredQuality = next.quality
+            Library.preferredQuality = next.quality
+            startAt = native.currentSeconds()
+            native.stop()
+            controls.hide()
+            nativeShown = false
+            hubRetried = false
+            playHub(next)
         }
     }
 
@@ -289,7 +365,11 @@ class PlayerActivity : Activity() {
         webView.loadUrl("about:blank")
         controls.bind(native, bridge.meta)
         refreshTrackButtons()
-        controls.setQualityAvailable(libraryEntry != null && libraryVariants().size > 1)
+        controls.setQualityAvailable(if (playingHub) hubVariants.size > 1 else libraryEntry != null && libraryVariants().size > 1)
+        if (playingHub) {
+            main.removeCallbacks(hideHint)
+            hint.visibility = View.GONE
+        }
         nativeView.requestFocus()
     }
 
@@ -300,6 +380,10 @@ class PlayerActivity : Activity() {
 
     /** Restarts the library file at the next uploaded print, keeping the position, and remembers the choice. */
     private fun cycleQuality() {
+        if (playingHub) {
+            showHubPrints()
+            return
+        }
         val current = libraryEntry ?: return
         val all = libraryVariants()
         if (all.size < 2) return
@@ -332,6 +416,8 @@ class PlayerActivity : Activity() {
         startAt = 0
         retried = false
         libraryFailed = false
+        hubFailed = false
+        hubRetried = false
         showHint(getString(R.string.player_next_episode, m.season, m.episode))
         load()
     }
@@ -341,6 +427,15 @@ class PlayerActivity : Activity() {
         if (BuildConfig.DEBUG) Log.d("FloxPlayer", "native failed: $reason")
         val at = native.currentSeconds()
         native.stop()
+        if (playingHub) {
+            // signed links expire and mirrors drop out; one fresh link, then the usual sources
+            startAt = maxOf(startAt, at)
+            if (hubRetried) hubFailed = true
+            hubRetried = true
+            showHint(getString(R.string.player_reloading))
+            if (hubFailed) load() else playHub(hubVariant)
+            return
+        }
         if (playingLibrary) libraryFailed = true else nativeAllowed = false
         if (nativeShown) {
             // the page was unloaded; bring it back as the player
@@ -586,11 +681,11 @@ class PlayerActivity : Activity() {
 
     private fun js(expr: String) = webView.evaluateJavascript("window.__flox&&($expr)", null)
 
-    private fun showHint(text: String) {
+    private fun showHint(text: String, durationMs: Long = HINT_MS) {
         hint.text = text
         hint.visibility = View.VISIBLE
         main.removeCallbacks(hideHint)
-        main.postDelayed(hideHint, HINT_MS)
+        main.postDelayed(hideHint, durationMs)
     }
 
     private fun showFailed() {
@@ -629,6 +724,7 @@ class PlayerActivity : Activity() {
 
     private companion object {
         const val HINT_MS = 2500L
+        const val HUB_HINT_MS = 20_000L
         const val VOLUME_STEP = 0.1f
         const val SUBTITLE_SMALL = 0.04f
         const val SUBTITLE_LARGE = 0.07f

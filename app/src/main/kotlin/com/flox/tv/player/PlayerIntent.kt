@@ -13,6 +13,9 @@ object PlayerIntent {
     const val EXTRA_SEASON = "season"
     const val EXTRA_EPISODE = "episode"
     const val EXTRA_START_AT = "startAt"
+    const val EXTRA_YEAR = "year"
+    /** Stream from 4KHDHub instead of the library or the page. */
+    const val EXTRA_HUB = "hub"
 
     fun create(
         ctx: Context,
@@ -22,7 +25,9 @@ object PlayerIntent {
         posterPath: String?,
         season: Int = 1,
         episode: Int = 1,
-        startAtSeconds: Int = 0
+        startAtSeconds: Int = 0,
+        year: String = "",
+        hub: Boolean = false
     ): Intent = Intent(ctx, PlayerActivity::class.java)
         .putExtra(EXTRA_ID, id)
         .putExtra(EXTRA_TYPE, type.tmdb)
@@ -31,4 +36,6 @@ object PlayerIntent {
         .putExtra(EXTRA_SEASON, season)
         .putExtra(EXTRA_EPISODE, episode)
         .putExtra(EXTRA_START_AT, startAtSeconds)
+        .putExtra(EXTRA_YEAR, year)
+        .putExtra(EXTRA_HUB, hub)
 }

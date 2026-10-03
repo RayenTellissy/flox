@@ -43,7 +43,7 @@ class DetailsActivity : Activity() {
         list = findViewById(R.id.list)
         list.layoutManager = LinearLayoutManager(this)
         list.setHasFixedSize(true)
-        adapter = DetailsAdapter(::play, ::startOver, ::selectSeason, ::playEpisode)
+        adapter = DetailsAdapter(::play, ::startOver, ::playHub, ::selectSeason, ::playEpisode, ::playEpisodeHub)
         adapter.mediaId = mediaId
         list.adapter = adapter
 
@@ -143,7 +143,10 @@ class DetailsActivity : Activity() {
     // Same title or episode as Resume, from 0:00
     private fun startOver() = launchPlayer(fromStart = true)
 
-    private fun launchPlayer(fromStart: Boolean) {
+    // Resume point of Play, streamed from 4KHDHub
+    private fun playHub() = launchPlayer(fromStart = false, hub = true)
+
+    private fun launchPlayer(fromStart: Boolean, hub: Boolean = false) {
         val d = details ?: return
         val p = progress
         val season = if (type == MediaType.TV) p?.lastSeason ?: 1 else 1
@@ -152,19 +155,21 @@ class DetailsActivity : Activity() {
         startActivity(
             PlayerIntent.create(
                 this, d.id, type, d.title, d.posterPath,
-                season = season, episode = episode, startAtSeconds = startAt
+                season = season, episode = episode, startAtSeconds = startAt, year = d.year, hub = hub
             )
         )
     }
 
-    private fun playEpisode(e: Episode) {
+    private fun playEpisodeHub(e: Episode) = playEpisode(e, hub = true)
+
+    private fun playEpisode(e: Episode, hub: Boolean = false) {
         val d = details ?: return
         val p = progress
         val startAt = if (p != null && p.lastSeason == e.season && p.lastEpisode == e.number) p.watchedSeconds else 0
         startActivity(
             PlayerIntent.create(
                 this, d.id, type, d.title, d.posterPath,
-                season = e.season, episode = e.number, startAtSeconds = startAt
+                season = e.season, episode = e.number, startAtSeconds = startAt, year = d.year, hub = hub
             )
         )
     }
