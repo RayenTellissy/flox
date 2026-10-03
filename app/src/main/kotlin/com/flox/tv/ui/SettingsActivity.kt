@@ -25,6 +25,10 @@ import com.flox.tv.data.SubtitleSize
 import com.flox.tv.telegram.Library
 import com.flox.tv.telegram.Telegram
 import com.flox.tv.telegram.TelegramLoginActivity
+import com.flox.tv.update.Updater
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /** Vertical list of settings rows. CENTER opens a picker or toggles, LEFT and RIGHT cycle through values. */
 class SettingsActivity : Activity() {
@@ -53,6 +57,8 @@ class SettingsActivity : Activity() {
     private val items = mutableListOf<Item>()
     private var historyCleared = false
     private val authListener: (Telegram.Auth) -> Unit = { runOnUiThread { items.forEach { it.refresh() } } }
+    private val updateListener: (Updater.State) -> Unit = { runOnUiThread { items.forEach { it.refresh() } } }
+    private val scope = MainScope()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,10 +69,13 @@ class SettingsActivity : Activity() {
         build()
         list.getChildAt(1)?.requestFocus()
         if (Telegram.configured) Telegram.addAuthListener(authListener)
+        Updater.addListener(updateListener)
     }
 
     override fun onDestroy() {
         Telegram.removeAuthListener(authListener)
+        Updater.removeListener(updateListener)
+        scope.cancel()
         super.onDestroy()
     }
 
@@ -162,6 +171,42 @@ class SettingsActivity : Activity() {
 
         section(R.string.settings_section_about)
         add(Item(R.string.settings_version, { "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})" }, {}))
+        add(Item(R.string.settings_update, { updateValue() }, { update() }))
+    }
+
+    private fun updateValue(): String = when (val state = Updater.state) {
+        Updater.State.Idle -> getString(R.string.settings_update_check)
+        Updater.State.Checking -> getString(R.string.settings_update_checking)
+        Updater.State.UpToDate -> getString(R.string.settings_update_latest)
+        is Updater.State.Available -> getString(R.string.settings_update_available, state.release.version)
+        is Updater.State.Downloading -> getString(R.string.settings_update_downloading, state.percent)
+        Updater.State.Installing -> getString(R.string.settings_update_installing)
+        is Updater.State.Failed -> getString(R.string.settings_update_failed, state.message.uppercase())
+    }
+
+    /** CENTER on the update row: checks the latest release, then offers to install it when newer. */
+    private fun update() {
+        if (Updater.busy) return
+        val state = Updater.state
+        if (state is Updater.State.Available) {
+            confirmUpdate(state.release)
+            return
+        }
+        scope.launch {
+            val next = Updater.check()
+            if (next is Updater.State.Available && !isFinishing) confirmUpdate(next.release)
+        }
+    }
+
+    private fun confirmUpdate(release: Updater.Release) {
+        val size = if (release.size > 0) getString(R.string.settings_update_size, (release.size / (1024 * 1024)).toInt()) else ""
+        val message = listOf(release.notes.trim(), size).filter { it.isNotEmpty() }.joinToString("\n\n")
+        AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle(getString(R.string.settings_update_title, release.version))
+            .setMessage(message)
+            .setPositiveButton(R.string.settings_update_install) { _, _ -> Updater.install(this, release) }
+            .setNegativeButton(R.string.settings_cancel, null)
+            .show()
     }
 
     /** Fixed common qualities merged with any quality currently uploaded to the library, highest first. */

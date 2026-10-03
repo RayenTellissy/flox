@@ -94,6 +94,17 @@
     <string name="settings_signed_in">SIGNED IN</string>
     <string name="settings_signed_out">SIGNED OUT</string>
     <string name="settings_version">Version</string>
+    <string name="settings_update">Check for updates</string>
+    <string name="settings_update_check">CHECK</string>
+    <string name="settings_update_checking">CHECKING</string>
+    <string name="settings_update_latest">UP TO DATE</string>
+    <string name="settings_update_available">%1$s AVAILABLE</string>
+    <string name="settings_update_downloading">DOWNLOADING %1$d%%</string>
+    <string name="settings_update_installing">INSTALLING</string>
+    <string name="settings_update_failed">FAILED · %1$s</string>
+    <string name="settings_update_title">Update to %1$s</string>
+    <string name="settings_update_install">INSTALL</string>
+    <string name="settings_update_size">Download size %1$d MB.</string>
     <string name="settings_on">ON</string>
     <string name="settings_off">OFF</string>
     <string name="settings_highest">HIGHEST</string>
